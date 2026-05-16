@@ -268,7 +268,7 @@ class Plugin:
         # Discover M3U sources
         m3u_options = [{"value": "_all", "label": "All sources"}]
         try:
-            for acc in M3UAccount.objects.all().values('id', 'name'):
+            for acc in M3UAccount.objects.filter(is_active=True).values('id', 'name'):
                 m3u_options.append({"value": acc['name'], "label": acc['name']})
         except Exception:
             pass
@@ -679,10 +679,16 @@ class Plugin:
     def _resolve_m3u_sources(self, settings, logger):
         """Resolve M3U source names to account IDs. Returns (valid_ids, m3u_priority_map, warnings)."""
         m3u_str = (settings.get("m3u_sources") or "").strip()
+        active_ids = list(
+            M3UAccount.objects.filter(is_active=True).values_list('id', flat=True)
+        )
         if not m3u_str or m3u_str == "_all":
-            return None, {}, []
+            return active_ids, {}, []
 
-        all_accounts = {a['name']: a['id'] for a in M3UAccount.objects.all().values('id', 'name')}
+        all_accounts = {
+            a['name']: a['id']
+            for a in M3UAccount.objects.filter(is_active=True).values('id', 'name')
+        }
         source_names = [s.strip() for s in m3u_str.split(",") if s.strip()]
 
         valid_ids = []
@@ -705,7 +711,7 @@ class Plugin:
         valid_ids, priority_map, _ = self._resolve_m3u_sources(settings, logger)
 
         qs = Stream.objects.all().values('id', 'name', 'm3u_account', 'stream_stats')
-        if valid_ids:
+        if valid_ids is not None:
             qs = qs.filter(m3u_account__in=valid_ids)
 
         streams = list(qs)
@@ -970,7 +976,7 @@ class Plugin:
                     m3u_val = settings.get('m3u_sources', '_all')
                     try:
                         if m3u_val == '_all':
-                            m3u_names = [acc['name'] for acc in M3UAccount.objects.all().values('name')]
+                            m3u_names = [acc['name'] for acc in M3UAccount.objects.filter(is_active=True).values('name')]
                             f.write(f"# M3U Sources: {', '.join(m3u_names) or '(none)'} (all)\n")
                         else:
                             f.write(f"# M3U Sources: {m3u_val}\n")
