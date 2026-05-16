@@ -2004,6 +2004,7 @@ class Plugin:
                                 matched_stream_objs.append(stream_obj_copy)
 
                         sorted_streams = self._sort_streams_by_quality(matched_stream_objs, prioritize_quality)
+                        attached_count = len(sorted_streams)
 
                         if not dry_run:
                             if preserve:
@@ -2027,6 +2028,7 @@ class Plugin:
                                                 order=next_order + idx
                                             )
                                     total_streams_attached += len(new_streams)
+                                    attached_count = len(new_streams)
                                 except Exception as e:
                                     logger.error(f"{LOG_PREFIX} Failed to append streams to '{ch_name}': {e}")
                             else:
@@ -2055,6 +2057,7 @@ class Plugin:
                                     if s['id'] not in existing_ids
                                 ]
                                 total_streams_attached += len(new_streams)
+                                attached_count = len(new_streams)
                             else:
                                 total_streams_attached += len(sorted_streams)
 
@@ -2063,7 +2066,7 @@ class Plugin:
                             "Channel": ch_name,
                             "Number": ch_number if ch_number else "",
                             "Category": category,
-                            "Streams Attached": len(sorted_streams),
+                            "Streams Attached": attached_count,
                             "Best Match": matches[0][0],
                             "Best Score": matches[0][1],
                             "Match Type": matches[0][2],
