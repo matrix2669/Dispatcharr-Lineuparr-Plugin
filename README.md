@@ -48,6 +48,7 @@ Before installing or using this plugin, it is **highly recommended** that you cr
 | `US_DirecTV-Premier_lineup.json` | DIRECTV Premier | US | ~300 |
 | `US_DISH-Top250_lineup.json` | DISH Top 250 | US | ~210 |
 | `US_Verizon-FIOS_lineup.json` | Verizon FiOS | US | ~190 |
+| `UK_Freeview_lineup.json` | Freeview | UK | ~165 |
 | `UK_SkyTV_lineup.json` | Sky TV | UK | ~160 |
 | `AU_Foxtel_lineup.json` | Foxtel Platinum Plus | AU | ~140 |
 | `CA_Telus-Optik_lineup.json` | Telus Optik | CA | ~140 |
