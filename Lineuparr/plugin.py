@@ -63,7 +63,7 @@ def _clean_json_text(s):
 
 
 class PluginConfig:
-    PLUGIN_VERSION = "1.26.1421641"
+    PLUGIN_VERSION = "1.26.1421651"
 
     DEFAULT_FUZZY_MATCH_THRESHOLD = 80
     DEFAULT_PRIORITIZE_QUALITY = True
@@ -614,10 +614,16 @@ class Plugin:
                         mapped_originals.add(orig)
                 if merged:
                     merged_cats[group_name] = merged
-            # Preserve any categories not in the mapping
+            # Fold any category not covered by the map into the broad
+            # Entertainment catch-all, so Refined/Simple yield only their
+            # documented fixed set of groups. A lineup with non-standard
+            # categories (e.g. UK lineups carrying Adult / Radio /
+            # International / HD) must not leak those through as their own
+            # groups -- that defeats the whole point of Refined/Simple.
+            catchall = "Entertainment" if detail == "refined" else "Entertainment & Lifestyle"
             for orig_name, channels in original_cats.items():
                 if orig_name not in mapped_originals and channels:
-                    merged_cats[orig_name] = channels
+                    merged_cats.setdefault(catchall, []).extend(channels)
             result["categories"] = merged_cats
             return result
 
