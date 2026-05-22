@@ -10,7 +10,7 @@ import re
 import logging
 import unicodedata
 
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 
 LOGGER = logging.getLogger("plugins.lineuparr.fuzzy_matcher")
 if not LOGGER.handlers:
@@ -218,14 +218,16 @@ class FuzzyMatcher:
         # Normalize hyphens to spaces
         name = re.sub(r'-', ' ', name)
 
-        # Preserve parenthesized East/West as bare words so they survive both
-        # the leading-parenthetical strip below and the generic parenthetical
-        # strip (MISC_PATTERNS). Bare "East"/"West" are intentionally kept
-        # (they distinguish separate feeds); "(East)"/"(West)" must be kept
-        # too, or a zoned lineup channel cannot match a zoned stream (e.g.
-        # "Univision East" vs "US Univision (East) (H)").
-        name = re.sub(r'\(\s*east\s*\)', ' East ', name, flags=re.IGNORECASE)
-        name = re.sub(r'\(\s*west\s*\)', ' West ', name, flags=re.IGNORECASE)
+        # Preserve parenthesized East/West -- and the (E)/(W) abbreviations --
+        # as bare words so they survive both the leading-parenthetical strip
+        # below and the generic parenthetical strip (MISC_PATTERNS). Bare
+        # "East"/"West" are intentionally kept (they distinguish separate
+        # feeds); the parenthesized forms must be kept too, or a zoned lineup
+        # channel cannot match a zoned stream (e.g. "Cartoon Network (W)" vs
+        # "US: Cartoon Network West"). Only E/W are converted -- the other
+        # single letters (A/S/H/F/X/D) are stream source/quality tags.
+        name = re.sub(r'\(\s*(?:east|e)\s*\)', ' East ', name, flags=re.IGNORECASE)
+        name = re.sub(r'\(\s*(?:west|w)\s*\)', ' West ', name, flags=re.IGNORECASE)
 
         # Remove leading parenthetical prefixes
         while name.lstrip().startswith('('):
@@ -821,8 +823,9 @@ class FuzzyMatcher:
 
         # Filter out wrong-region matches (East vs West vs Pacific)
         # Check both normalized query AND original name for regional indicators.
-        # normalize_name strips parentheticals like (E)/(W) before we get here,
-        # so we must detect abbreviated regional suffixes from the original name.
+        # normalize_name converts (E)/(W) to bare East/West and strips other
+        # parentheticals, so detect abbreviated regional suffixes (incl. the
+        # Pacific (P) abbreviation it does drop) from the original name.
         query_lower = (normalized_query or "").lower()
         original_lower = (lineup_name or "").lower()
         # Detect (e)/(w)/(p) abbreviations in the original name
