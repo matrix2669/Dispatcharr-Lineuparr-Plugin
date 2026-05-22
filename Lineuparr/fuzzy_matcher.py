@@ -10,7 +10,7 @@ import re
 import logging
 import unicodedata
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 LOGGER = logging.getLogger("plugins.lineuparr.fuzzy_matcher")
 if not LOGGER.handlers:
@@ -83,12 +83,15 @@ _PLUTO_COUNTRY_MAP = {
     # "LATIN"/"EUROPE" etc. intentionally omitted — ambiguous region.
 }
 
-# Country pairs that share enough cross-border channels (CBS, ABC, ESPN, A&E,
-# TSN, etc.) that users consider them interchangeable. A US lineup should still
-# accept a `(CA) ESPN` stream and vice versa.
+# Country pairs that share enough cross-border channels that users consider
+# them interchangeable. US<->CA share CBS/ABC/ESPN/A&E/TSN etc.; US<->MX share
+# the US Spanish-language networks (Univision, Telemundo, Galavision, NBC
+# Universo), whose M3U feeds are frequently tagged MEX. A US lineup should
+# accept a `(CA) ESPN` or `MEX: Galavision` stream, and vice versa.
 _COMPATIBLE_COUNTRIES = {
-    "US": {"CA"},
+    "US": {"CA", "MX"},
     "CA": {"US"},
+    "MX": {"US"},
 }
 
 
@@ -356,6 +359,16 @@ class FuzzyMatcher:
                 cleaned_s += ' '
         tokens = sorted([token for token in cleaned_s.split() if token])
         return " ".join(tokens)
+
+    @staticmethod
+    def _trailing_number(name):
+        """Return the integer value of a space-separated, purely-numeric
+        trailing token, or None. 'HBO 2' -> 2, 'DIRECTV 4K Live 1' -> 1,
+        'ESPN' -> None, 'ESPN2' -> None (digit not space-separated). Used to
+        reject 'Foo 1' vs 'Foo 2' false positives -- different channels that
+        otherwise fuzzy-match almost perfectly."""
+        m = re.search(r'(?:^|\s)(\d{1,4})\s*$', name or "")
+        return int(m.group(1)) if m else None
 
     def _channel_number_boost(self, stream_name, expected_number):
         """
@@ -688,6 +701,10 @@ class FuzzyMatcher:
             normalized_query_lower = normalized_query.lower()
             normalized_query_nospace = re.sub(r'[\s&\-]+', '', normalized_query_lower)
             processed_query = self.process_string_for_matching(normalized_query)
+            # A differing space-separated trailing number means a different
+            # channel ("DIRECTV 4K Live 1" vs "... Live 2") -- used to skip
+            # those near-identical false positives in the fuzzy stages below.
+            query_trailing_num = self._trailing_number(normalized_query_lower)
 
             for candidate in candidate_names:
                 if candidate in all_matches:
@@ -697,6 +714,11 @@ class FuzzyMatcher:
                 candidate_lower, candidate_nospace = self._get_cached_norm(candidate, user_ignored_tags)
                 if not candidate_lower:
                     continue
+
+                if query_trailing_num is not None:
+                    cand_trailing_num = self._trailing_number(candidate_lower)
+                    if cand_trailing_num is not None and cand_trailing_num != query_trailing_num:
+                        continue  # "Foo 1" vs "Foo 2" -- different channel
 
                 score = 0
                 mtype = None
