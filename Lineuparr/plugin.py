@@ -62,7 +62,7 @@ def _clean_json_text(s):
 
 
 class PluginConfig:
-    PLUGIN_VERSION = "1.26.1421425"
+    PLUGIN_VERSION = "1.26.1421427"
 
     DEFAULT_FUZZY_MATCH_THRESHOLD = 80
     DEFAULT_PRIORITIZE_QUALITY = True
@@ -730,16 +730,50 @@ class Plugin:
         if custom_str:
             try:
                 custom = json.loads(custom_str)
-                if isinstance(custom, dict):
-                    for k, v in custom.items():
-                        if isinstance(v, list):
-                            if k in alias_map:
-                                alias_map[k] = list(dict.fromkeys(alias_map[k] + v))
-                            else:
-                                alias_map[k] = v
-                    logger.info(f"{LOG_PREFIX} Merged {len(custom)} custom aliases")
             except json.JSONDecodeError as e:
                 logger.warning(f"{LOG_PREFIX} Failed to parse custom_aliases JSON: {e}")
+                custom = None
+
+            if isinstance(custom, dict):
+                merged = 0
+                for k, v in custom.items():
+                    # Accept a list of aliases, or a bare string as a single
+                    # alias. Anything else is a mistake — warn instead of
+                    # silently dropping it (silent drops were a known
+                    # source of "my aliases don't work" complaints).
+                    if isinstance(v, str):
+                        aliases = [v]
+                    elif isinstance(v, list):
+                        aliases = v
+                    else:
+                        logger.warning(
+                            f"{LOG_PREFIX} custom_aliases: ignoring '{k}' — value "
+                            f"must be a string or list, got {type(v).__name__}"
+                        )
+                        continue
+                    # Keep only non-empty string aliases.
+                    clean = [a.strip() for a in aliases
+                             if isinstance(a, str) and a.strip()]
+                    if not clean:
+                        logger.warning(
+                            f"{LOG_PREFIX} custom_aliases: ignoring '{k}' — no "
+                            f"usable (non-empty string) aliases"
+                        )
+                        continue
+                    if k in alias_map:
+                        alias_map[k] = list(dict.fromkeys(alias_map[k] + clean))
+                    else:
+                        alias_map[k] = clean
+                    merged += 1
+                logger.info(
+                    f"{LOG_PREFIX} Merged {merged} custom alias "
+                    f"{'entry' if merged == 1 else 'entries'}"
+                )
+            elif custom is not None:
+                logger.warning(
+                    f"{LOG_PREFIX} custom_aliases must be a JSON object mapping "
+                    f"channel names to aliases, got {type(custom).__name__} — ignored"
+                )
 
         return alias_map
 
@@ -754,6 +788,22 @@ class Plugin:
 
         epg_sources_str = (settings.get("epg_sources") or "").strip()
         if not epg_sources_str or epg_sources_str == "_all":
+            # "All" selected: order EPG entries by Dispatcharr's per-source
+            # priority (EPGSource.priority — higher number = higher priority)
+            # so downstream consumers that take the first match honor the
+            # priority the user configured in Dispatcharr.
+            priority_by_id = {
+                src['id']: (src['priority'] or 0)
+                for src in EPGSource.objects.all().values('id', 'priority')
+            }
+            all_epg.sort(
+                key=lambda e: priority_by_id.get(e.get('epg_source'), 0),
+                reverse=True,
+            )
+            logger.info(
+                f"{LOG_PREFIX} EPG 'All': {len(all_epg)} entries ordered by "
+                f"source priority ({len(priority_by_id)} sources)"
+            )
             return all_epg
 
         # Map source names to IDs (case-insensitive)
