@@ -63,7 +63,7 @@ def _clean_json_text(s):
 
 
 class PluginConfig:
-    PLUGIN_VERSION = "1.26.1421705"
+    PLUGIN_VERSION = "1.26.1421711"
 
     DEFAULT_FUZZY_MATCH_THRESHOLD = 80
     DEFAULT_PRIORITIZE_QUALITY = True
@@ -291,6 +291,8 @@ class Plugin:
                     }
             except Exception:
                 pass
+        # Show the dropdown alphabetically by its visible label
+        lineup_options.sort(key=lambda o: o["label"].lower())
         if not lineup_options:
             lineup_options = [{"value": "_none", "label": "No lineup files found"}]
 
@@ -301,6 +303,8 @@ class Plugin:
                 m3u_options.append({"value": acc['name'], "label": acc['name']})
         except Exception:
             pass
+        # Alphabetize discovered sources, keeping "All sources" pinned first
+        m3u_options[1:] = sorted(m3u_options[1:], key=lambda o: o["label"].lower())
 
         # Discover EPG sources
         epg_source_options = [{"value": "_all", "label": "All EPG sources"}]
@@ -310,6 +314,8 @@ class Plugin:
                     epg_source_options.append({"value": src['name'], "label": src['name']})
             except Exception:
                 pass
+        # Alphabetize (case-insensitive), keeping "All EPG sources" pinned first
+        epg_source_options[1:] = sorted(epg_source_options[1:], key=lambda o: o["label"].lower())
 
         # Discover channel profiles
         profile_options = [{"value": "_none", "label": "None (don't enable in profiles)"}]
@@ -318,6 +324,8 @@ class Plugin:
                 profile_options.append({"value": p['name'], "label": p['name']})
         except Exception:
             pass
+        # Alphabetize discovered profiles, keeping "None" pinned first
+        profile_options[1:] = sorted(profile_options[1:], key=lambda o: o["label"].lower())
 
         return [
             # --- Section: Lineup & Sources ---
