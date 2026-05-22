@@ -10,7 +10,7 @@ import re
 import logging
 import unicodedata
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 LOGGER = logging.getLogger("plugins.lineuparr.fuzzy_matcher")
 if not LOGGER.handlers:
@@ -52,6 +52,11 @@ GEOGRAPHIC_PATTERNS = [
 # Enhanced provider prefix patterns for IPTV-specific naming
 PROVIDER_PREFIX_PATTERNS = [
     r'^(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*[:\-\|]\s*',
+    # Bare country tag + whitespace, no separator (e.g. "US Racer Network").
+    # Restricted to the 2-letter US/UK/CA/AU codes so it cannot eat a real
+    # channel name: "USA Network" (USA != US + space) and "In Country
+    # Television" ("IN") are both safe from this pattern.
+    r'^(?:US|UK|CA|AU)\s+',
     r'^\s*\((?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\)\s*',
     r'\s*\|\s*(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*$',
 ]
@@ -212,6 +217,15 @@ class FuzzyMatcher:
 
         # Normalize hyphens to spaces
         name = re.sub(r'-', ' ', name)
+
+        # Preserve parenthesized East/West as bare words so they survive both
+        # the leading-parenthetical strip below and the generic parenthetical
+        # strip (MISC_PATTERNS). Bare "East"/"West" are intentionally kept
+        # (they distinguish separate feeds); "(East)"/"(West)" must be kept
+        # too, or a zoned lineup channel cannot match a zoned stream (e.g.
+        # "Univision East" vs "US Univision (East) (H)").
+        name = re.sub(r'\(\s*east\s*\)', ' East ', name, flags=re.IGNORECASE)
+        name = re.sub(r'\(\s*west\s*\)', ' West ', name, flags=re.IGNORECASE)
 
         # Remove leading parenthetical prefixes
         while name.lstrip().startswith('('):
