@@ -239,6 +239,10 @@ CHANNEL_ALIASES = {
     "Baby TV": ["Baby Tv", "Baby TV", "BabyTV"],
 
     # --- UK: UKTV / Entertainment ---
+    # UKTV rebranded all channels under the "U" masterbrand on 16 July 2024
+    # (Dave/Drama/Yesterday/W) and 7 November 2024 (Gold/alibi). Reverse
+    # aliases let lineups using the pre-rebrand short names match the
+    # current EPG entries (U&Dave, U&Drama, etc.).
     "BBC Scotland": ["BBCScotlandHD", "UKHD BBC SCOTLAND", "UKSD BBC SCOTLAND"],
     "Sky Showcase": ["NEW UKHD Sky Showcase", "UKSD: Sky Showcase +1"],
     "U&Dave": ["HEVC HD U&Dave", "U and Dave HD", "UK: Dave", "Dave"],
@@ -247,6 +251,19 @@ CHANNEL_ALIASES = {
     "U&YESTERDAY": ["U and YESTERDAY", "UK FHD YESTERDAY", "Yesterday"],
     "U&alibi": ["U and alibi HD", "alibi+1", "UK: alibi", "Alibi"],
     "U&Drama": ["U and Drama", "U and Drama HD", "U and Drama +1"],
+    # Reverse aliases — lineup uses pre-rebrand short name, EPG has U& prefix.
+    "Dave": ["U&Dave", "U&Dave HD", "Dave"],
+    "Drama": ["U&Drama", "U&Drama HD", "Drama"],
+    "Drama +1": ["U&Drama+1", "U&Drama +1", "Drama +1"],
+    "Yesterday": ["U&Yesterday", "U&Yesterday HD", "U&YESTERDAY", "Yesterday"],
+    "W": ["U&W", "U&W HD", "W"],
+    "Gold": ["U&GOLD", "U&GOLD HD", "U&Gold", "Gold"],
+    "alibi": ["U&alibi", "U&alibi HD", "Alibi"],
+    "Eden": ["U&Eden", "U&Eden HD", "Eden"],
+    "Really": ["U&Really", "U&Really HD", "Really"],
+    "Really +1": ["U&Really+1", "U&Really +1", "Really +1"],
+    "Home": ["U&Home", "U&Home HD", "Home"],
+    "Dave ja vu": ["Dave ja vu", "U&Dave ja vu"],
 
     # --- UK: Factual ---
     "Discovery History": ["Disc.History", "Disc.History+1", "UK: Discovery History"],
