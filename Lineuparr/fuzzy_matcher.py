@@ -805,11 +805,11 @@ class FuzzyMatcher:
         # Quality-aware pre-filtering (opt-in via quality_aware).
         # Both tiers are gated: upgrade channels only match upgrade streams,
         # standard channels only match standard streams. Streams listed in
-        # alias_map for a standard channel bypass the filter.
+        # alias_map for either tier bypass the filter.
         if quality_aware:
             lineup_is_upgrade = has_upgrade_quality(lineup_name or "")
             explicit_bypass = set()
-            if not lineup_is_upgrade and alias_map:
+            if alias_map:
                 raw = alias_map.get(lineup_name, [])
                 alias_list = [raw] if isinstance(raw, str) else list(raw)
                 norm_aliases = {

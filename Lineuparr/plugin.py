@@ -450,9 +450,10 @@ class Plugin:
                 "type": "boolean",
                 "default": False,
                 "help_text": (
-                    "When on, channels that have a UHD/4K twin in the lineup are automatically "
-                    "restricted to standard streams (e.g. TF1 only matches TF1/TF1 FHD, not TF1 4K). "
-                    "The twin channel (e.g. TF1 UHD) receives the upgrade streams exclusively. "
+                    "When on, if the lineup contains both TF1 and TF1 UHD, each is restricted "
+                    "to streams of its own quality tier: TF1 only matches standard streams, "
+                    "TF1 UHD only matches upgrade streams (4K/8K/UHD/HDR). "
+                    "Channels with no twin in the lineup are unaffected. "
                     "Streams listed in a channel's aliases bypass this filter."
                 ),
             },
@@ -921,7 +922,8 @@ class Plugin:
             return set()
         twin_set = self._build_upgrade_twin_set(lineup, matcher)
         if logger and twin_set:
-            logger.info(f"{LOG_PREFIX} Quality-aware matching active for: {sorted(twin_set)}")
+            logger.info(f"{LOG_PREFIX} Quality-aware matching active for {len(twin_set)} channel(s)")
+            logger.debug(f"{LOG_PREFIX} Quality-aware twins: {sorted(twin_set)}")
         return twin_set
 
     def _get_filtered_epg_data(self, settings, logger):
