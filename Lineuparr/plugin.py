@@ -25,14 +25,14 @@ from apps.channels.models import Channel, ChannelGroup, ChannelProfile, ChannelP
 from apps.m3u.models import M3UAccount
 from core.utils import send_websocket_update
 
-# EPG models (optional — EPG matching disabled if not available)
+# EPG models (optional - EPG matching disabled if not available)
 try:
     from apps.epg.models import EPGData, EPGSource, ProgramData
     _EPG_AVAILABLE = True
 except ImportError:
     _EPG_AVAILABLE = False
 
-# Logo model (optional — logo assignment disabled if not available)
+# Logo model (optional - logo assignment disabled if not available)
 try:
     from apps.channels.models import Logo
     _LOGO_AVAILABLE = True
@@ -63,7 +63,7 @@ def _clean_json_text(s):
 
 
 class PluginConfig:
-    PLUGIN_VERSION = "1.26.1581832"
+    PLUGIN_VERSION = "1.26.1581845"
 
     DEFAULT_FUZZY_MATCH_THRESHOLD = 80
     DEFAULT_PRIORITIZE_QUALITY = True
@@ -187,7 +187,7 @@ class ProgressTracker:
         self._publish("done", summary=summary)
 
     def _publish(self, status, summary=None):
-        """Write the progress state file (best-effort — a write failure is
+        """Write the progress state file (best-effort - a write failure is
         logged but never interrupts the operation)."""
         record = {
             "status": status,
@@ -865,7 +865,7 @@ class Plugin:
                 merged = 0
                 for k, v in custom.items():
                     # Accept a list of aliases, or a bare string as a single
-                    # alias. Anything else is a mistake — warn instead of
+                    # alias. Anything else is a mistake - warn instead of
                     # silently dropping it (silent drops were a known
                     # source of "my aliases don't work" complaints).
                     if isinstance(v, str):
@@ -874,7 +874,7 @@ class Plugin:
                         aliases = v
                     else:
                         logger.warning(
-                            f"{LOG_PREFIX} custom_aliases: ignoring '{k}' — value "
+                            f"{LOG_PREFIX} custom_aliases: ignoring '{k}' - value "
                             f"must be a string or list, got {type(v).__name__}"
                         )
                         continue
@@ -883,7 +883,7 @@ class Plugin:
                              if isinstance(a, str) and a.strip()]
                     if not clean:
                         logger.warning(
-                            f"{LOG_PREFIX} custom_aliases: ignoring '{k}' — no "
+                            f"{LOG_PREFIX} custom_aliases: ignoring '{k}' - no "
                             f"usable (non-empty string) aliases"
                         )
                         continue
@@ -899,7 +899,7 @@ class Plugin:
             elif custom is not None:
                 logger.warning(
                     f"{LOG_PREFIX} custom_aliases must be a JSON object mapping "
-                    f"channel names to aliases, got {type(custom).__name__} — ignored"
+                    f"channel names to aliases, got {type(custom).__name__} - ignored"
                 )
 
         return alias_map
@@ -953,7 +953,7 @@ class Plugin:
         epg_sources_str = (settings.get("epg_sources") or "").strip()
         if not epg_sources_str or epg_sources_str == "_all":
             # "All" selected: order EPG entries by Dispatcharr's per-source
-            # priority (EPGSource.priority — higher number = higher priority)
+            # priority (EPGSource.priority - higher number = higher priority)
             # so downstream consumers that take the first match honor the
             # priority the user configured in Dispatcharr.
             priority_by_id = {
@@ -2580,7 +2580,7 @@ class Plugin:
                         continue
 
                     # Fuzzy match channel name against EPG names
-                    # (all candidates already have program data — pre-filtered above)
+                    # (all candidates already have program data - pre-filtered above)
                     matches = matcher.match_all_streams(
                         ch_name, unique_epg_names, alias_map,
                         channel_number=ch_number

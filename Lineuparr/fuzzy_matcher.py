@@ -52,7 +52,7 @@ QUALITY_PATTERNS = [
 ]
 
 # Quality markers that distinguish an upgrade-tier channel from its standard twin.
-# HD/FHD/HEVC are intentionally excluded — they don't create a separate twin channel.
+# HD/FHD/HEVC are intentionally excluded - they don't create a separate twin channel.
 _UPGRADE_QUALITY_RE = re.compile(r'\b(?:4K|8K|UHD|HDR)\b|ᵁᴴᴰ', re.IGNORECASE)
 
 
@@ -62,7 +62,7 @@ def has_upgrade_quality(name: str) -> bool:
 
 
 REGIONAL_PATTERNS = [
-    # East/West are intentionally NOT stripped — they distinguish separate channel feeds
+    # East/West are intentionally NOT stripped - they distinguish separate channel feeds
     # (e.g., "HBO East" and "HBO West" are different channels)
     r'\s[Pp][Aa][Cc][Ii][Ff][Ii][Cc]',
     r'\s[Cc][Ee][Nn][Tt][Rr][Aa][Ll]',
@@ -127,12 +127,12 @@ _PLUTO_COUNTRY_MAP = {
     "GERMANY": "DE", "SPAIN": "ES", "FRANCE": "FR", "ITALY": "IT",
     "CANADA": "CA", "MEXICO": "MX", "INDIA": "IN", "IRELAND": "IE",
     "AUSTRALIA": "AU", "NETHERLANDS": "NL",
-    # "LATIN"/"EUROPE" etc. intentionally omitted — ambiguous region.
+    # "LATIN"/"EUROPE" etc. intentionally omitted - ambiguous region.
 }
 
 # Cross-border country matching is STRICT by default: a lineup accepts only
 # streams tagged with its own country (plus untagged streams, which can't be
-# proven wrong). Blanket compatibility was removed — it wrongly merged
+# proven wrong). Blanket compatibility was removed - it wrongly merged
 # channels that merely share a name across a border (Food Network US != Food
 # Network CA; ESPN US != ESPN MX).
 #
@@ -343,8 +343,8 @@ class FuzzyMatcher:
         name = re.sub(r'([a-z]{4,})([A-Z]{2,})\b', r'\1 \2', name)
 
         # Strip region tokens (East / Eastern / West and the (E)/(W)
-        # abbreviations) for SCORING. Region CORRECTNESS — East vs West vs
-        # Pacific — is enforced separately by the post-match region filter in
+        # abbreviations) for SCORING. Region CORRECTNESS - East vs West vs
+        # Pacific - is enforced separately by the post-match region filter in
         # match_all_streams, which reads the ORIGINAL un-normalized names, not
         # this output. Stripping here lets a regionless lineup channel
         # ("Food Network") still score-match a region-tagged stream
@@ -473,7 +473,7 @@ class FuzzyMatcher:
         "america racing" vs "america bbc" while allowing single-token matches.
         """
         # "network"/"channel"/"television" are generic brand-suffix words, not
-        # distinctive — treat as common so the subset guard does not reject
+        # distinctive - treat as common so the subset guard does not reject
         # cases like "FanDuel Sports Cincinnati" vs "FanDuel Sports Network
         # Cincinnati". (They're already stripped from end-of-string by
         # normalize_name; this catches mid-string occurrences.)
@@ -607,7 +607,7 @@ class FuzzyMatcher:
 
     # Words that match the callsign regex shape but are never US broadcast
     # callsigns. A US callsign (K/W + 2-4 letters) is shape-identical to many
-    # common English words, so the loose Priority-4 pattern mis-extracts them —
+    # common English words, so the loose Priority-4 pattern mis-extracts them -
     # e.g. "with" in "Bizarre Foods with Andrew Zimmern" becomes callsign
     # "WITH". Regex alone cannot tell "WITH" from "WABC"; frequent K/W-initial
     # words are denied explicitly so they never extract as a callsign. WWE/WWF/
@@ -669,7 +669,7 @@ class FuzzyMatcher:
         """
         Cached wrapper around _compute_callsign_with_confidence.
 
-        Extraction is pure in channel_name, so results are memoized — the
+        Extraction is pure in channel_name, so results are memoized - the
         anchor calls this once per stream over a fixed candidate list, which
         is otherwise massively redundant across the per-channel matching
         loop. Cache is cleared by precompute_normalizations.
@@ -720,7 +720,7 @@ class FuzzyMatcher:
 
         matches = []
 
-        # Normalize all aliases — track spaced and nospace versions separately
+        # Normalize all aliases - track spaced and nospace versions separately
         alias_lookup = {}  # normalized_lower -> alias (for exact matching, includes both forms)
         alias_spaced = []  # only the spaced (original) normalized forms (for similarity matching)
         for alias in aliases:
@@ -765,7 +765,7 @@ class FuzzyMatcher:
             effective_threshold = self._length_scaled_threshold(self.match_threshold, best_alias_len)
 
             if score >= effective_threshold and score < 100:
-                # Aliases are short/curated — a fuzzy alias match must share a
+                # Aliases are short/curated - a fuzzy alias match must share a
                 # majority of tokens, not just one. This rejects false positives
                 # like alias "ABC News" vs stream "BBC News" (93%, shares only
                 # "news"; the 3-char call sign "abc"/"bbc" is below the basic
@@ -1052,13 +1052,13 @@ class FuzzyMatcher:
         # Filter out wrong-country matches. A stream whose name carries a
         # recognized country marker (e.g. "UK: Discovery Channel", "(IN) Bloomberg",
         # "(PLUTO Brazil) MTV") and that marker differs from the lineup's country
-        # is dropped. Streams without a country marker are kept — we can't prove
+        # is dropped. Streams without a country marker are kept - we can't prove
         # they're wrong and over-filtering breaks lineups whose M3U sources don't
         # tag country at all.
         #
         # Matching is STRICT by default: only the lineup's own country passes.
         # The single exception is a channel that is genuinely the same feed
-        # across a border (e.g. US Spanish networks tagged MEX) — see
+        # across a border (e.g. US Spanish networks tagged MEX) - see
         # _CROSS_BORDER_SHARED. This deliberately rejects same-name-different-
         # channel cases like "(CA) Food Network" or "(MX) ESPN" for a US lineup.
         if lineup_country:
@@ -1153,7 +1153,7 @@ class FuzzyMatcher:
         # the overlap between the candidate's ORIGINAL tokens and the lineup
         # channel's ORIGINAL tokens. The secondary key disambiguates ties caused
         # by normalize_name collapsing brand-name timezones (e.g. "Comedy TV"
-        # and "Comedy Central" both normalize to "comedy") — without it, the
+        # and "Comedy Central" both normalize to "comedy") - without it, the
         # winner is whichever candidate happened to appear first in the EPG
         # source list. The original-token overlap correctly prefers
         # "USA: Comedy TV" over "(US) Comedy Central (S)" when matching

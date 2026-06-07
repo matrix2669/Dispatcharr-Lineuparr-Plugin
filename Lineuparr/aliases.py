@@ -44,7 +44,7 @@ CHANNEL_ALIASES = {
     # Florida, Midwest, North, Ohio, Oklahoma, SoCal, South, Southeast,
     # Southwest, Sun, West, Wisconsin) to "FanDuel TV Extra". That fallback
     # gave every regional sports channel the same generic FanDuel EPG when
-    # no regional EPG existed — worse than NO MATCH. Regions with a real
+    # no regional EPG existed - worse than NO MATCH. Regions with a real
     # regional EPG (e.g. Midwest, Southwest, West) match by direct name.
     "FS1": ["Fox Sports 1", "FS1", "FS 1", "Fox Sport 1"],
     "Fox Sports 1": ["Fox Sports 1", "FS1", "FS 1", "Fox Sport 1"],
@@ -251,7 +251,7 @@ CHANNEL_ALIASES = {
     "U&YESTERDAY": ["U and YESTERDAY", "UK FHD YESTERDAY", "Yesterday"],
     "U&alibi": ["U and alibi HD", "alibi+1", "UK: alibi", "Alibi"],
     "U&Drama": ["U and Drama", "U and Drama HD", "U and Drama +1"],
-    # Reverse aliases — lineup uses pre-rebrand short name, EPG has U& prefix.
+    # Reverse aliases - lineup uses pre-rebrand short name, EPG has U& prefix.
     "Dave": ["U&Dave", "U&Dave HD", "Dave"],
     "Drama": ["U&Drama", "U&Drama HD", "Drama"],
     "Drama +1": ["U&Drama+1", "U&Drama +1", "Drama +1"],
@@ -356,17 +356,17 @@ CHANNEL_ALIASES = {
     # old and new names never coexist there; per-provider lineups (DISH/Verizon)
     # keep whatever name the provider used, hence both directions are covered.
     # NOTE: deliberately NOT aliasing regional Bally/FanDuel/Fox Sports Net
-    # feeds (see the FanDuel TV note above) — that catch-all was harmful.
+    # feeds (see the FanDuel TV note above) - that catch-all was harmful.
     #
     # Sports
     "SportsNet Pittsburgh": ["SportsNet Pittsburgh", "AT&T SportsNet Pittsburgh", "ATT SportsNet Pittsburgh", "Root Sports Pittsburgh"],
-    # Premium movies — current names also matching the old multiplex names
+    # Premium movies - current names also matching the old multiplex names
     "MGM+": ["MGM+", "MGM Plus", "MGM+ East", "EPIX", "Epix", "EPIX 1"],
     "MGM+ Hits": ["MGM+ Hits", "MGM Hits", "EPIX Hits"],
     "Cinemax Action": ["Cinemax Action", "ActionMax", "Action Max"],
     "Cinemax Classics": ["Cinemax Classics", "5StarMax", "5 Star Max", "Five Star Max"],
     "Cinemax Hits HD": ["Cinemax Hits HD", "Cinemax Hits", "MoreMax", "More Max"],
-    # Premium movies — lineups still using the pre-rebrand multiplex names
+    # Premium movies - lineups still using the pre-rebrand multiplex names
     "Action Max": ["Action Max", "ActionMax", "Cinemax Action"],
     "Five Star Max": ["Five Star Max", "5StarMax", "5 Star Max", "Cinemax Classics"],
     "More Max": ["More Max", "MoreMax", "Cinemax Hits"],
@@ -378,7 +378,7 @@ CHANNEL_ALIASES = {
     "Great American Family": ["Great American Family", "Great American Country", "GAC", "GAC Family"],
     "Great American Country": ["Great American Country", "Great American Family", "GAC"],
     "Hallmark Drama": ["Hallmark Drama", "Hallmark Family"],
-    # News — DISH lineup still carries the pre-rebrand "WGN America" name.
+    # News - DISH lineup still carries the pre-rebrand "WGN America" name.
     "WGN America": ["WGN America", "WGN", "NewsNation", "News Nation"],
 }
 
@@ -388,7 +388,7 @@ CHANNEL_ALIASES = {
 # Some channel NAMES exist in more than one country with DIFFERENT stream-name
 # variants. Because CHANNEL_ALIASES is keyed only by channel name, putting a
 # country-specific variant there silently collided with (and clobbered) the
-# entry for the same name in another market — e.g. a France-only "TLC" ->
+# entry for the same name in another market - e.g. a France-only "TLC" ->
 # "Discovery Science" mapping overrode the US "TLC" -> "TLC US" entry AND
 # leaked into US/UK/NL/CA lineups, where TLC and Discovery Science are
 # SEPARATE channels (bug-063).
