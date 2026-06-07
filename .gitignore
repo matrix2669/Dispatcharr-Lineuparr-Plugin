@@ -53,3 +53,16 @@ dispatcharr-plugin-limitations.md
 feedback_*.md
 project_*.md
 reference_*.md
+
+# Dev tooling / scripts — kept locally, NOT part of the shipped plugin.
+# The repo should contain ONLY the plugin's runtime files (everything under
+# Lineuparr/) plus README/LICENSE/.github. Anything else lives here.
+bump_version.py
+conftest.py
+*smoke*.py
+
+# OpenWolf local context (AI memory — not part of the plugin)
+.wolf/
+
+# Local run / export artifacts
+*.csv
