@@ -10,7 +10,7 @@ import re
 import logging
 import unicodedata
 
-__version__ = "1.3.2"
+__version__ = "1.3.3"
 
 LOGGER = logging.getLogger("plugins.lineuparr.fuzzy_matcher")
 if not LOGGER.handlers:
@@ -23,9 +23,12 @@ LOGGER.setLevel(logging.DEBUG)
 
 # Unicode categories considered decorative/badge characters by IPTV providers.
 # So = Other Symbol (◉), No = Other Number (², ³), Lm = Modifier Letter
-# (ᴿᴬᵂ, ᴴᴰ, ⱽᴵᴾ superscripts), Sk = Modifier Symbol, Sm = Math Symbol.
+# (ᴿᴬᵂ, ᴴᴰ, ⱽᴵᴾ superscripts), Sk = Modifier Symbol.
 # Accented letters (é, î, ü…) are Ll/Lu and are NOT in this set.
-_DECORATOR_CATS = frozenset({'So', 'No', 'Lm', 'Sk', 'Sm'})
+# Sm (Math Symbol) is intentionally EXCLUDED: it contains "+", which is a
+# meaningful, channel-distinguishing character (Canal+, Three Stooges+,
+# Comedy Central+). Stripping it regresses those matches.
+_DECORATOR_CATS = frozenset({'So', 'No', 'Lm', 'Sk'})
 
 # Tokens that are non-distinctive stream-label variants (e.g. "ABC News Live"
 # should still match "ABC News"). Used by the subset/divergent guards.
