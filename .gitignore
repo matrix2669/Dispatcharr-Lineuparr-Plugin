@@ -66,3 +66,12 @@ conftest.py
 
 # Local run / export artifacts
 *.csv
+
+# Provider playlists + local stream-name extracts (NEVER commit - may contain
+# provider credentials in URLs; the extracts are kept local for matcher tuning)
+*.m3u
+*.m3u8
+_stream_exports/
+extract_stream_names.ps1
+_export_stream_names.py
+_analyze_streams.py

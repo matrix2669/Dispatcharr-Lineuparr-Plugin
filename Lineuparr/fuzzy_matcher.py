@@ -90,10 +90,19 @@ PROVIDER_PREFIX_PATTERNS = [
     # "In Country Television" ("IN") and "IT Crowd" ("IT") are all safe too.
     # Keep this set in sync with detect_stream_country()'s bare-space branch.
     r'^(?:US|UK|CA|AU|FR|DE|MX|MEX|FRA|GER)\s+',
+    # "USA " space prefix as a US country tag ("USA  ABC", "USA BET"). A
+    # negative lookahead for NETWORK protects the real channel "USA Network"
+    # (these feeds tag that one as "US ..."/"US: ...", never bare "USA ").
+    # Keep in sync with detect_stream_country()'s USA branch.
+    r'^USA\s+(?!NETWORK\b)',
+    # Country code glued directly to a quality tag with no separator
+    # ("UKSD: Sky Sports", "UKHD ESPN", "USFHD ..."). Detection mirrors this
+    # in detect_stream_country() so these can't leak as wildcards.
+    r'^(?:US|UK)(?:SD|HD|FHD|UHD|FD|HEVC|4K|8K)\b\s*[:\-\|]?\s*',
     r'^\s*\((?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\)\s*',
     r'\s*\|\s*(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*$',
     # Content-category group prefixes used by some IPTV providers.
-    r'^(?:ADULT|EROTIC|PRIME)\s*[:\-\|]\s*',
+    r'^(?:ADULT|EROTIC|PRIME|GOLD)\s*[:\-\|]\s*',
     # FAST streaming-platform source tags (Roku, Tubi, Pluto, etc.). These mark
     # the distribution platform, not the channel or its country, so strip them
     # for matching ("RK: beIN Sports Xtra" -> "beIN Sports Xtra"). A separator
@@ -112,6 +121,14 @@ MISC_PATTERNS = [
 _KNOWN_COUNTRY_CODES = {
     "US", "UK", "CA", "AU", "DE", "FR", "IT", "ES", "NL", "BR", "MX", "IN",
     "IE", "SE", "NO", "DK", "PT", "PL", "AT", "CH", "BE", "FI",
+    # Codes seen as colon-prefixes in provider feeds (e.g. "TR: 24 TV",
+    # "GR: ...", "IR: IRIB ...", "AL: DigitalB"). normalize_name() already
+    # strips a 2-3 letter colon prefix via GEOGRAPHIC_PATTERNS, so detection
+    # must recognize these too or the streams match cleanly yet evade the
+    # country filter and leak as wildcards (the bug-064 asymmetry). "AR" is
+    # deliberately excluded: in these feeds it tags Arabic-language channels,
+    # not Argentina, so mapping it to a country would be wrong.
+    "TR", "GR", "IR", "AL",
 }
 
 # ISO-3 or colloquial codes seen in M3U streams → ISO-2.
@@ -214,6 +231,22 @@ def detect_stream_country(name):
     m = re.match(r'^\s*(US|UK|CA|AU|FR|DE|MX|MEX|FRA|GER)\s+', name, re.IGNORECASE)
     if m:
         return _normalize_country_token(m.group(1))
+
+    # Country code glued directly to a quality tag, no separator ("UKSD: Sky
+    # Sports", "UKHD ESPN", "USFHD ..."). normalize_name() strips this via
+    # PROVIDER_PREFIX_PATTERNS, so detection must match it too, otherwise these
+    # match a foreign lineup cleanly but can't be proven wrong-country and leak
+    # in as backup streams (same asymmetry as bug-064).
+    m = re.match(r'^\s*(US|UK)(?:SD|HD|FHD|UHD|FD|HEVC|4K|8K)\b', name, re.IGNORECASE)
+    if m:
+        return _normalize_country_token(m.group(1))
+
+    # "USA " as a US country tag ("USA  ABC", "USA BET"). The real channel
+    # "USA Network" is tagged "US ..."/"US: ..." in these feeds, never bare
+    # "USA ", so a NETWORK lookahead keeps it from being misread as country=US.
+    m = re.match(r'^\s*USA\s+(?!NETWORK\b)', name, re.IGNORECASE)
+    if m:
+        return "US"
 
     return None
 
@@ -574,9 +607,12 @@ class FuzzyMatcher:
 
     @staticmethod
     def _is_group_header(name):
-        """Return True for M3U playlist group/section separators like '##### EUROSPORT #####'.
-        These are not real stream names and must be excluded from matching."""
-        return bool(re.search(r'[#=*|]{3,}', name or ""))
+        """Return True for M3U playlist group/section separators like '##### EUROSPORT #####'
+        or '## 24/7 COMEDY ##'. These are not real stream names and must be
+        excluded from matching. A run of 2+ #/=/* is decorative (no real channel
+        name contains "##"/"=="/"**"); pipes need a run of 3+ since a single "|"
+        is a common in-name separator ("001 | Team A vs Team B")."""
+        return bool(re.search(r'[#=*]{2,}|\|{3,}', name or ""))
 
     @staticmethod
     def _trailing_number(name):
