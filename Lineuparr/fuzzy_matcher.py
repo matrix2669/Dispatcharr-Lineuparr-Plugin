@@ -74,10 +74,36 @@ REGIONAL_PATTERNS = [
     r'\s*\([Aa][Tt][Ll][Aa][Nn][Tt][Ii][Cc]\)\s*',
 ]
 
+# Country tokens accepted inside a bracketed/piped prefix like "(US)" or
+# "│US│". Curated set so a bare bracketed word ("(SPORTS)") can't be misread
+# as a country. Keep in sync with detect_stream_country()'s bracket branch.
+_PREFIX_COUNTRY = r'US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN'
+
+# Delimiter pairs treated as interchangeable wrappers around a tag. The open
+# and close must MATCH, so mismatched forms like "(US]" or "│US)" are NOT
+# accepted (the old single-class regex did accept them). Each entry is an
+# (open, close) regex fragment.
+_DELIM_PAIRS = ((r'\(', r'\)'), (r'\[', r'\]'), (r'\|', r'\|'), ('┃', '┃'), ('│', '│'))
+
+
+def _balanced_delim(token):
+    """Regex fragment matching `token` wrapped in a single MATCHED delimiter
+    pair: (token) [token] |token| ┃token┃ │token│. `token` is spliced in as a
+    regex fragment and may contain its own capture group."""
+    return '(?:' + '|'.join(
+        o + r'\s*(?:' + token + r')\s*' + c for o, c in _DELIM_PAIRS
+    ) + ')'
+
+
+# Leading bracketed/piped country tag, used by detect_stream_country(). One of
+# the five same-shaped capture groups is populated per match.
+_BRACKETED_CC_RE = re.compile(r'^\s*' + _balanced_delim(r'([A-Za-z]{2,3})'))
+
 GEOGRAPHIC_PATTERNS = [
     r'\b[A-Z]{2,3}[:┃│]\s*',
     r'\b[A-Z]{2,3}\s*-\s*',
-    r'[\|┃│][A-Z]{2,3}[\|┃│]\s*',
+    # Matched bar pair only ("|US|", "┃US┃") - a mismatched "|US┃" is noise.
+    r'(?:\|[A-Z]{2,3}\||┃[A-Z]{2,3}┃|│[A-Z]{2,3}│)\s*',
     r'\[[A-Z]{2,3}\]\s*',
 ]
 
@@ -99,7 +125,8 @@ PROVIDER_PREFIX_PATTERNS = [
     # ("UKSD: Sky Sports", "UKHD ESPN", "USFHD ..."). Detection mirrors this
     # in detect_stream_country() so these can't leak as wildcards.
     r'^(?:US|UK)(?:SD|HD|FHD|UHD|FD|HEVC|4K|8K)\b\s*[:\-\|┃│]?\s*',
-    r'^\s*[\(\[\|┃│]\s*(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*[\)\]\|┃│]\s*',
+    # Bracketed/piped country tag with a MATCHED delimiter pair ("(US)", "│US│").
+    r'^\s*' + _balanced_delim(_PREFIX_COUNTRY) + r'\s*',
     r'\s*[\|┃│]\s*(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*$',
     # Content-category group prefixes used by some IPTV providers.
     r'^(?:ADULT|EROTIC|PRIME|GOLD)\s*[:\-\|┃│]\s*',
@@ -226,9 +253,10 @@ def detect_stream_country(name):
         mapped = _PLUTO_COUNTRY_MAP.get(m.group(1).upper())
         return mapped if mapped in _KNOWN_COUNTRY_CODES else None
 
-    m = re.match(r'^\s*[\(\[\|┃│]\s*([A-Za-z]{2,3})\s*[\)\]\|┃│]', name)
+    m = _BRACKETED_CC_RE.match(name)
     if m:
-        return _normalize_country_token(m.group(1))
+        tok = next((g for g in m.groups() if g), None)
+        return _normalize_country_token(tok) if tok else None
 
     m = re.match(r'^\s*([A-Za-z]{2,3})\s*[-:|┃│]', name)
     if m:
@@ -669,11 +697,23 @@ class FuzzyMatcher:
         return bool(tokens_a & tokens_b)
 
     def process_string_for_matching(self, s):
-        """Normalize for token-sort matching: lowercase, remove accents, sort tokens."""
-        s = unicodedata.normalize('NFD', s)
+        """Normalize for token-sort matching: fold compatibility/accent forms,
+        lowercase, keep alphanumerics of any script, and sort tokens.
+
+        Uses NFKD (not NFD) so compatibility forms collapse onto their ASCII
+        equivalents before matching: fullwidth "ＨＢＯ" -> "hbo", superscript
+        "²" -> "2", ligature "ﬁ" -> "fi", ordinal "º" -> "o". Combining marks
+        are then dropped so accents fold too ("Canalé" -> "canale").
+        char.isalnum() keeps letters/digits of every script (Cyrillic, CJK,
+        Arabic) instead of erasing non-Latin names to empty strings.
+        """
+        s = unicodedata.normalize('NFKD', s)
         s = ''.join(char for char in s if unicodedata.category(char) != 'Mn')
         s = s.lower()
-        s = re.sub(r'([a-z])(\d)', r'\1 \2', s)
+        # Split a letter glued to a digit ("hbo2" -> "hbo 2") for any script,
+        # mirroring normalize_name()'s ASCII split now that non-Latin letters
+        # survive the cleaning loop below. [^\W\d_] is "any Unicode letter".
+        s = re.sub(r'([^\W\d_])(\d)', r'\1 \2', s)
         cleaned_s = ""
         for char in s:
             if char.isalnum():
