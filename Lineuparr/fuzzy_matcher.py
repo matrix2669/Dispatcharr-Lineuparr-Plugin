@@ -74,16 +74,43 @@ REGIONAL_PATTERNS = [
     r'\s*\([Aa][Tt][Ll][Aa][Nn][Tt][Ii][Cc]\)\s*',
 ]
 
+# Country tokens for the delimited provider-prefix patterns below; curated so a
+# bare delimited word ("(SPORTS)") isn't misread as a country. Keep in sync with
+# detect_stream_country().
+_PREFIX_COUNTRY = r'US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN'
+
+# (open, close) pairs; open and close must MATCH, so "(US]" / "│US)" are rejected.
+_DELIM_PAIRS = ((r'\(', r'\)'), (r'\[', r'\]'), (r'\|', r'\|'), ('┃', '┃'), ('│', '│'))
+
+
+def _balanced_delim(token):
+    """Regex fragment matching `token` wrapped in one MATCHED delimiter pair:
+    (token) [token] |token| ┃token┃ │token│. `token` may contain a capture group."""
+    return '(?:' + '|'.join(
+        o + r'\s*(?:' + token + r')\s*' + c for o, c in _DELIM_PAIRS
+    ) + ')'
+
+
+# Leading country tag in a matched delimiter pair; one capture group fires.
+_BRACKETED_CC_RE = re.compile(r'^\s*' + _balanced_delim(r'([A-Za-z]{2,3})'))
+
+# Strip a leading box-bar bouquet/source tag with arbitrary inner text
+# ("┃CANAL+┃ NPO 1" -> "NPO 1"); box bars never occur in real names, so this is
+# always safe and also covers leading "┃XX┃" country tags. detect_stream_country
+# reads the raw name, so detection is unaffected.
+_LEADING_BAR_TAG_RE = re.compile(r'^\s*[┃│]\s*[^┃│]*[┃│]\s*')
+
 GEOGRAPHIC_PATTERNS = [
-    r'\b[A-Z]{2,3}:\s*',
+    r'\b[A-Z]{2,3}[:┃│]\s*',
     r'\b[A-Z]{2,3}\s*-\s*',
-    r'\|[A-Z]{2,3}\|\s*',
+    # Matched bar pair only ("|US|", "┃US┃") - a mismatched "|US┃" is noise.
+    r'(?:\|[A-Z]{2,3}\||┃[A-Z]{2,3}┃|│[A-Z]{2,3}│)\s*',
     r'\[[A-Z]{2,3}\]\s*',
 ]
 
 # Enhanced provider prefix patterns for IPTV-specific naming
 PROVIDER_PREFIX_PATTERNS = [
-    r'^(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*[:\-\|]\s*',
+    r'^(?:' + _PREFIX_COUNTRY + r')\s*[:\-\|┃│]\s*',
     # Bare country tag + whitespace, no separator (e.g. "US Racer Network",
     # "FR beIN SPORTS MAX", "MEX Bein Sports"). Restricted to a curated set so
     # it cannot eat a real channel name: "USA Network" (USA != US + space),
@@ -98,18 +125,19 @@ PROVIDER_PREFIX_PATTERNS = [
     # Country code glued directly to a quality tag with no separator
     # ("UKSD: Sky Sports", "UKHD ESPN", "USFHD ..."). Detection mirrors this
     # in detect_stream_country() so these can't leak as wildcards.
-    r'^(?:US|UK)(?:SD|HD|FHD|UHD|FD|HEVC|4K|8K)\b\s*[:\-\|]?\s*',
-    r'^\s*\((?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\)\s*',
-    r'\s*\|\s*(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*$',
+    r'^(?:US|UK)(?:SD|HD|FHD|UHD|FD|HEVC|4K|8K)\b\s*[:\-\|┃│]?\s*',
+    # Bracketed/piped country tag with a MATCHED delimiter pair ("(US)", "│US│").
+    r'^\s*' + _balanced_delim(_PREFIX_COUNTRY) + r'\s*',
+    r'\s*[\|┃│]\s*(?:' + _PREFIX_COUNTRY + r')\s*$',
     # Content-category group prefixes used by some IPTV providers.
-    r'^(?:ADULT|EROTIC|PRIME|GOLD)\s*[:\-\|]\s*',
+    r'^(?:ADULT|EROTIC|PRIME|GOLD)\s*[:\-\|┃│]\s*',
     # FAST streaming-platform source tags (Roku, Tubi, Pluto, etc.). These mark
     # the distribution platform, not the channel or its country, so strip them
     # for matching ("RK: beIN Sports Xtra" -> "beIN Sports Xtra"). A separator
     # is required so this can't eat real names like "GOLF" or "PLEX TV Movies".
     # NOT a country signal: detect_stream_country() ignores these (correctly,
     # since a platform like Roku spans US/CA/UK).
-    r'^(?:RK|GO|TUBI|PLUTO|XUMO|PLEX|STIRR|FREEVEE|GLANCE)\s*[:\-\|]\s*',
+    r'^(?:RK|GO|TUBI|PLUTO|XUMO|PLEX|STIRR|FREEVEE|GLANCE)\s*[:\-\|┃│]\s*',
 ]
 
 MISC_PATTERNS = [
@@ -226,11 +254,12 @@ def detect_stream_country(name):
         mapped = _PLUTO_COUNTRY_MAP.get(m.group(1).upper())
         return mapped if mapped in _KNOWN_COUNTRY_CODES else None
 
-    m = re.match(r'^\s*\(\s*([A-Za-z]{2,3})\s*\)', name)
+    m = _BRACKETED_CC_RE.match(name)
     if m:
-        return _normalize_country_token(m.group(1))
+        tok = next((g for g in m.groups() if g), None)
+        return _normalize_country_token(tok) if tok else None
 
-    m = re.match(r'^\s*([A-Za-z]{2,3})\s*[-:|]', name)
+    m = re.match(r'^\s*([A-Za-z]{2,3})\s*[-:|┃│]', name)
     if m:
         return _normalize_country_token(m.group(1))
 
@@ -295,7 +324,7 @@ def detect_category_country(category_name):
         return None
 
     # Country code followed by a delimiter: "AU| ...", "UK: ...", "US-...".
-    m = re.match(r'^\s*([A-Za-z]{2,3})\s*[-:|]', category_name)
+    m = re.match(r'^\s*([A-Za-z]{2,3})\s*[-:|┃│]', category_name)
     if m:
         return _normalize_country_token(m.group(1))
 
@@ -397,6 +426,8 @@ class FuzzyMatcher:
             user_ignored_tags = []
 
         original_name = name
+
+        name = _LEADING_BAR_TAG_RE.sub('', name)  # leading "┃CANAL+┃" bouquet tag
 
         # Strip IPTV provider prefixes BEFORE hyphen normalization so that
         # "FR - Canal+ FHD" loses its "FR - " while the hyphen is still a
@@ -669,14 +700,16 @@ class FuzzyMatcher:
         return bool(tokens_a & tokens_b)
 
     def process_string_for_matching(self, s):
-        """Normalize for token-sort matching: lowercase, remove accents, sort tokens."""
-        s = unicodedata.normalize('NFD', s)
+        """Normalize for token-sort matching: NFKD-fold (so "ＨＢＯ"->"hbo", "²"->"2",
+        "ﬁ"->"fi", accents drop), lowercase, keep alphanumerics of any script
+        (isalnum keeps Cyrillic/CJK/Arabic rather than erasing them), sort tokens."""
+        s = unicodedata.normalize('NFKD', s)
         s = ''.join(char for char in s if unicodedata.category(char) != 'Mn')
         s = s.lower()
-        s = re.sub(r'([a-z])(\d)', r'\1 \2', s)
+        s = re.sub(r'([^\W\d_])(\d)', r'\1 \2', s)  # split letter-glued digit, any script
         cleaned_s = ""
         for char in s:
-            if 'a' <= char <= 'z' or '0' <= char <= '9':
+            if char.isalnum():
                 cleaned_s += char
             else:
                 cleaned_s += ' '
