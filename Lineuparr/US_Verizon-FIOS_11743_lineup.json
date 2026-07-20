@@ -661,9 +661,8 @@
           "WCBS",
           "WCBS-TV",
           "WCBSDT",
-          "CBS 2",
+          "CBS 2 NEW YORK",
           "CBS NEW YORK",
-          "US: CBS HD",
           "16689",
           "16689273",
           "11331",
@@ -684,6 +683,7 @@
           "WJLPDT",
           "75523",
           "75523274",
+          "MEtv",
           "WJLPSD",
           "83094",
           "830941",
@@ -698,13 +698,12 @@
         "name": "NBC 4 New York",
         "number": 504,
         "aliases": [
-          "US: NBC 4 (WNBC) NEW YORK (A) ᴿᴬᵂ",
-          "US: NBC 4 (WNBC) NEW YORK (H) ᴿᴬᵂ",
+          "NBC 4 (WNBC)",
           "WNBC",
           "WNBC-TV",
           "WNBCDT",
           "NBC 4",
-          "NBC NEW YORK",
+          "NBC 4 NEW YORK",
           "20459",
           "20459275",
           "11705",
@@ -722,11 +721,10 @@
         "name": "FOX 5 New York",
         "number": 505,
         "aliases": [
-          "US: FOX 5 (WNYW) NEW YORK HD",
+          "FOX 5 (WNYW)",
           "WNYW",
           "WNYW-TV",
           "WNYWDT",
-          "FOX 5",
           "FOX 5 NEW YORK",
           "20360",
           "20360276",
@@ -763,18 +761,15 @@
         "name": "ABC 7 New York",
         "number": 507,
         "aliases": [
-          "US: ABC HD [NEW YORK]",
-          "US: ABC 7 NEW YORK",
+          "ABC 7 NEW YORK",
           "WABC",
           "WABC-TV",
           "WABCDT",
-          "ABC 7",
           "ABC 7 NEW YORK",
           "20453",
           "20453278",
           "11259",
           "112595",
-          "AMERICAN BROADCASTING COMPANY",
           "507 WABCDT",
           "507 WABC-DT",
           "WABC-DT"
@@ -839,7 +834,6 @@
           "20373281",
           "11779",
           "117798",
-          "THE CW TELEVISION NETWORK",
           "511 WPIXDT",
           "511 CW WPIX-DT",
           "CW WPIX-DT"
@@ -1022,6 +1016,8 @@
           "WPXN-TV",
           "WPXNDT",
           "ION NEW YORK",
+          "ION",
+          "ION EAST",
           "43818",
           "43818293",
           "11743",
@@ -1539,8 +1535,6 @@
           "US: YES NETWORK HD",
           "YESNetwork.us",
           "US: (GT) Yes Network ᴴᴰ",
-          "US: (GT) Yes Network Latin ᴴᴰ",
-          "US: (GT) Yes Network Overflow ᴴᴰ",
           "YES",
           "YESHDNY",
           "YES NETWORK NY",
@@ -1854,7 +1848,6 @@
         "aliases": [
           "US: CBS SPORTS NETWORK HD",
           "CBSSportsNetwork.us",
-          "US: CBS SPORTS GALAZO NETWORK 4K",
           "CBSSNHD",
           "59250",
           "59250323",
@@ -1876,17 +1869,6 @@
         "aliases": [
           "US: BEIN SPORTS HD",
           "beINSports.us",
-          "US: BEIN SPORTS 2 HD",
-          "beINSports2En.qa",
-          "US: BEIN SPORTS 4 HD",
-          "beINSports4En.qa",
-          "US: BEIN SPORTS 5 HD",
-          "beINSports5En.qa",
-          "US: BEIN SPORTS 6 HD",
-          "beINSports6En.qa",
-          "US: BEIN SPORTS 7 HD",
-          "beINSports7En.qa",
-          "US: BEIN SPORTS 8 HD",
           "BEIN1HD",
           "76950",
           "76950324",
@@ -1916,8 +1898,7 @@
         "name": "YES Network 2",
         "number": 598,
         "aliases": [
-          "US: YES NETWORK HD",
-          "YESNetwork.us",
+          "Yes Network Overflow",
           "YES2HD",
           "82128",
           "82128326",
@@ -2065,8 +2046,6 @@
         "number": 834,
         "addon": "Sports Pass",
         "aliases": [
-          "US: MLB NETWORK",
-          "MLBNetwork.us",
           "US: MLB STRIKE ZONE HD",
           "MLBSZHD",
           "75220",
@@ -2083,6 +2062,7 @@
         "addon": "Sports Pass",
         "aliases": [
           "NFLNRZD",
+          "NFL REDZONE",
           "65025",
           "65025453",
           "835 NFLNRZD"
@@ -4889,7 +4869,8 @@
           "MILH",
           "48999",
           "4899988",
-          "126 MILH"
+          "126 MILH",
+          "MILITARY HISTORY"
         ],
         "epg_ids": [
           "48999"
@@ -4981,7 +4962,8 @@
           "DLCHD",
           "92204",
           "92204349",
-          "624 DLCHD"
+          "624 DLCHD",
+          "DISCOVERY LIFE"
         ],
         "epg_ids": [
           "92204"
