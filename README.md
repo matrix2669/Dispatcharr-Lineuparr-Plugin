@@ -50,7 +50,11 @@ Over 200 built-in channel aliases, plus your own in JSON. Every setting and acti
 | `US_DirecTV-Premier_lineup.json` | DIRECTV Premier | US | ~350 |
 | `US_DISH-Top250_lineup.json` | DISH Top 250 | US | ~215 |
 | `US_Verizon-FIOS_lineup.json` | Verizon FiOS | US | ~200 |
-| `US_Verizon-FIOS-All-11743_lineup.json` | Verizon FiOS, every channel available at ZIP 11743 | US | ~512 |
+| `US_Verizon-FIOS-All-11743_lineup.json` | Verizon FiOS, every channel available at ZIP 11743 | US | ~508 |
+| `US_Optimum_lineup.json` | Optimum (Southern Westchester) | US | ~340 |
+| `US_Spectrum-Tampa-Bay-All_lineup.json` | Spectrum Tampa Bay, all channels | US | ~410 |
+| `US_Spectrum-Tampa-Bay-No-Spanish_lineup.json` | Spectrum Tampa Bay, Spanish channels excluded | US | ~320 |
+| `US_Spectrum-Tampa-Bay-Spanish-Only_lineup.json` | Spectrum Tampa Bay, Spanish channels only | US | ~85 |
 | `US_Combined_lineup.json` | US Combined (DIRECTV + DISH + Verizon) | US | ~465 |
 | `UK_Freeview_lineup.json` | Freeview | UK | ~160 |
 | `UK_SkyTV_lineup.json` | Sky TV | UK | ~175 |
@@ -66,7 +70,7 @@ Over 200 built-in channel aliases, plus your own in JSON. Every setting and acti
 
 These are community-compiled channel lists based on publicly available provider lineup information. You can write your own: see the [lineup file format](docs/LINEUP-FORMAT.md).
 
-The Verizon FiOS ZIP 11743 lineup is the one to look at if you are writing your own: 438 of its channels carry their own alias lists, which is the per-channel `aliases` array described in that format guide.
+The Verizon FiOS ZIP 11743 lineup is the one to look at if you are writing your own: 434 of its channels carry their own alias lists, which is the per-channel `aliases` array described in that format guide. The three Spectrum Tampa Bay lineups use the same array on every channel.
 
 ## Requirements
 
