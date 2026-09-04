@@ -79,6 +79,30 @@ Only an alias that is *entirely* a callsign counts. `WWOR` and `WWOR-TV` do;
 `WWOR New York` does not, because a display name is not a claim about which
 streams belong to the channel.
 
+## Per-channel excluded aliases
+
+A channel entry may also carry `excluded_aliases`. Use it for a stream name that
+looks like a good match but is known not to belong to that channel.
+
+```json
+{
+  "name": "REELZ",
+  "number": 128,
+  "aliases": ["Reelz Channel"],
+  "excluded_aliases": ["US-ReelzChannel"]
+}
+```
+
+A single exclusion may be a plain string instead of a one-item list. Exclusions
+use the same case, spacing, punctuation, provider-prefix and quality-tag
+normalization as aliases. They are channel-scoped: the excluded stream cannot
+match this channel through an alias, callsign, exact, substring, fuzzy, quality
+bypass or channel-number boost, but it can still match another channel.
+
+Exclusions are literal names after normalization. Values such as `regex:`, `!`
+and glob characters have no special meaning. This keeps lineup files safe to
+load and makes a rejection as predictable as a positive alias.
+
 ---
 
 ## Foreign channels inside a single-country lineup
