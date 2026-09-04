@@ -48,8 +48,8 @@ tells you whether your match sensitivity is set sensibly for your source.
 If GraceNoteScraper is building the lineup, Lineuparr can keep its own persistent copy without a plugin reinstall:
 
 1. Paste the GraceNoteScraper export endpoint into **Generated Lineup URL** and save the settings. For example, `http://gracenotescraper:8080/api/lineuparr/export` when both containers share a Docker network.
-2. Run **Import / Refresh Generated Lineup** on the Actions tab.
-3. Reopen the settings and select the entry prefixed **Imported:** under **Lineup File**.
+2. Run **Import / Refresh Generated Lineup** on the Actions tab and confirm that the imported lineup will become active.
+3. After a successful import, the lineup is selected automatically. You may need to disable and re-enable the plugin for the selection to show correctly in Settings. If the download or validation fails, the active selection stays unchanged.
 4. Run **Validate Settings** before syncing.
 
 The action accepts HTTP or HTTPS, validates the JSON before replacing anything, and writes it atomically under `/data/lineuparr/lineups`. Its result identifies an empty or unreachable URL, or reports **Created new lineup file** or **Refreshed lineup file** with the exact filename. Running it again with the same generated filename recreates that file with the newest response and clears Lineuparr's in-memory lineup cache. If the generated filename is different, it is saved as another persistent lineup; existing lineup files are never deleted by this action.
