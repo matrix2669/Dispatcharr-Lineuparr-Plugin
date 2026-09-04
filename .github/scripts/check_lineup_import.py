@@ -7,6 +7,7 @@ import sys
 import tempfile
 from email.message import Message
 from pathlib import Path
+from urllib.error import URLError
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -64,6 +65,14 @@ def require_raises(callable_):
     raise AssertionError("expected LineupImportError")
 
 
+def captured_error(callable_):
+    try:
+        callable_()
+    except LineupImportError as exc:
+        return str(exc)
+    raise AssertionError("expected LineupImportError")
+
+
 def main():
     url = "http://gracenotescraper/api/lineuparr/export"
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -74,6 +83,7 @@ def main():
         )
         assert result["filename"] == "US_Test-Cable_lineup.json"
         assert result["channels"] == 1
+        assert result["operation"] == "created"
         saved = json.loads((Path(temp_dir) / result["filename"]).read_text(encoding="utf-8"))
         assert saved["package"] == "Test Cable"
 
@@ -83,6 +93,7 @@ def main():
             opener=opener_for(lineup("Updated Cable", "Updated Network"), "US_Test-Cable_lineup.json"),
         )
         assert refreshed["filename"] == "US_Test-Cable_lineup.json"
+        assert refreshed["operation"] == "refreshed"
         saved = json.loads((Path(temp_dir) / result["filename"]).read_text(encoding="utf-8"))
         assert saved["package"] == "Updated Cable"
 
@@ -92,6 +103,7 @@ def main():
             opener=opener_for(lineup("Other Cable", "Other Network"), "US_Other-Cable_lineup.json"),
         )
         assert additional["filename"] == "US_Other-Cable_lineup.json"
+        assert additional["operation"] == "created"
         assert (Path(temp_dir) / "US_Test-Cable_lineup.json").exists()
         assert (Path(temp_dir) / "US_Other-Cable_lineup.json").exists()
 
@@ -107,6 +119,18 @@ def main():
         assert result["filename"] == "US_Path-Name_lineup.json"
 
     require_raises(lambda: import_generated_lineup("file:///tmp/lineup.json", "/tmp"))
+    assert captured_error(lambda: import_generated_lineup("", "/tmp")) == (
+        "Generated Lineup URL is empty. Enter a URL and save settings before importing."
+    )
+
+    def unreachable(request, timeout):
+        raise URLError("unreachable test host")
+
+    assert captured_error(lambda: import_generated_lineup(
+        url,
+        "/tmp",
+        opener=unreachable,
+    )) == "The Generated Lineup URL is unreachable."
     require_raises(lambda: import_generated_lineup(
         url,
         "/tmp",
