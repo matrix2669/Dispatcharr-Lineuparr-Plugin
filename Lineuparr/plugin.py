@@ -1889,11 +1889,10 @@ class Plugin:
             next_step = "It is already selected and will be used on the next Lineuparr action."
         else:
             next_step = "Reopen settings and select the Imported lineup under Lineup File."
-        warning = f" {imported['warning']}" if imported.get("warning") else ""
         message = (
             f"Imported {imported['package']} as {imported['filename']} "
             f"({imported['channels']} channels in {imported['categories']} categories). "
-            f"{next_step}{warning}"
+            f"{next_step}"
         )
         logger.info(
             f"{LOG_PREFIX} Imported generated lineup {imported['filename']}: "

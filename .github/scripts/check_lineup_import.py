@@ -80,10 +80,19 @@ def main():
         refreshed = import_generated_lineup(
             url,
             temp_dir,
+            opener=opener_for(lineup("Updated Cable", "Updated Network"), "US_Test-Cable_lineup.json"),
+        )
+        assert refreshed["filename"] == "US_Test-Cable_lineup.json"
+        saved = json.loads((Path(temp_dir) / result["filename"]).read_text(encoding="utf-8"))
+        assert saved["package"] == "Updated Cable"
+
+        additional = import_generated_lineup(
+            url,
+            temp_dir,
             opener=opener_for(lineup("Other Cable", "Other Network"), "US_Other-Cable_lineup.json"),
         )
-        assert refreshed["filename"] == "US_Other-Cable_lineup.json"
-        assert not (Path(temp_dir) / "US_Test-Cable_lineup.json").exists()
+        assert additional["filename"] == "US_Other-Cable_lineup.json"
+        assert (Path(temp_dir) / "US_Test-Cable_lineup.json").exists()
         assert (Path(temp_dir) / "US_Other-Cable_lineup.json").exists()
 
     with tempfile.TemporaryDirectory() as temp_dir:

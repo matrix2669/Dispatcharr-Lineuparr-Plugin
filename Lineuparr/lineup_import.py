@@ -14,7 +14,6 @@ from urllib.request import Request, urlopen
 
 
 LINEUP_FILENAME_RE = re.compile(r"^[A-Z]{2}_.+_lineup\.json$")
-GENERATED_METADATA_FILE = ".generated-lineup-source.json"
 DEFAULT_MAX_BYTES = 10 * 1024 * 1024
 DEFAULT_TIMEOUT_SECONDS = 30
 
@@ -151,19 +150,6 @@ def _atomic_json_write(path, data, mode=0o600):
         raise
 
 
-def _previous_generated_filename(destination_dir):
-    metadata_path = os.path.join(destination_dir, GENERATED_METADATA_FILE)
-    try:
-        with open(metadata_path, "r", encoding="utf-8") as handle:
-            metadata = json.load(handle)
-    except (OSError, ValueError, TypeError):
-        return None
-    filename = metadata.get("filename") if isinstance(metadata, dict) else None
-    if isinstance(filename, str) and LINEUP_FILENAME_RE.fullmatch(filename):
-        return filename
-    return None
-
-
 def import_generated_lineup(url, destination_dir, opener=None,
                             timeout=DEFAULT_TIMEOUT_SECONDS,
                             max_bytes=DEFAULT_MAX_BYTES):
@@ -204,27 +190,8 @@ def import_generated_lineup(url, destination_dir, opener=None,
 
     os.makedirs(destination_dir, mode=0o700, exist_ok=True)
     destination_dir = os.path.realpath(destination_dir)
-    previous_filename = _previous_generated_filename(destination_dir)
     destination_path = os.path.join(destination_dir, filename)
     _atomic_json_write(destination_path, data)
-
-    metadata_warning = ""
-    try:
-        _atomic_json_write(
-            os.path.join(destination_dir, GENERATED_METADATA_FILE),
-            {"filename": filename},
-        )
-    except OSError:
-        metadata_warning = " The lineup was saved, but the previous generated file could not be tracked."
-
-    if previous_filename and previous_filename != filename:
-        previous_path = os.path.join(destination_dir, previous_filename)
-        try:
-            os.unlink(previous_path)
-        except FileNotFoundError:
-            pass
-        except OSError:
-            metadata_warning += " The earlier generated lineup could not be removed."
 
     package = data.get("package")
     if not isinstance(package, str) or not package.strip():
@@ -235,5 +202,4 @@ def import_generated_lineup(url, destination_dir, opener=None,
         "package": package,
         "categories": category_count,
         "channels": channel_count,
-        "warning": metadata_warning.strip(),
     }

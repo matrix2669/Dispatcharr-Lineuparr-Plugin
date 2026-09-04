@@ -52,7 +52,7 @@ If GraceNoteScraper is building the lineup, Lineuparr can keep its own persisten
 3. Reopen the settings and select the entry prefixed **Imported:** under **Lineup File**.
 4. Run **Validate Settings** before syncing.
 
-The action accepts HTTP or HTTPS, validates the JSON before replacing anything, and writes it atomically under `/data/lineuparr/lineups`. Running it again recreates the file with the newest response and clears Lineuparr's in-memory lineup cache. If the generated filename changes, the earlier file managed by this action is removed after the new file is safely written. Other lineup files placed in the persistent directory are left alone.
+The action accepts HTTP or HTTPS, validates the JSON before replacing anything, and writes it atomically under `/data/lineuparr/lineups`. Running it again with the same generated filename recreates that file with the newest response and clears Lineuparr's in-memory lineup cache. If the generated filename is different, it is saved as another persistent lineup; existing lineup files are never deleted by this action.
 
 The server must provide a filename in the form `{CC}_{Provider}_lineup.json`, either through the HTTP `Content-Disposition` header or at the end of the URL. GraceNoteScraper's export endpoint already supplies this header. The country code is required for Lineuparr's country filtering and logo lookup. Do not put credentials in the URL; Lineuparr rejects URLs containing a username or password.
 
