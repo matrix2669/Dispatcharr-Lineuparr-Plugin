@@ -99,7 +99,7 @@ def _clean_json_text(s):
 
 
 class PluginConfig:
-    PLUGIN_VERSION = "1.26.2421451"
+    PLUGIN_VERSION = "1.26.2471558-beta.1"
 
     DEFAULT_FUZZY_MATCH_THRESHOLD = 80
     DEFAULT_PRIORITIZE_QUALITY = True
