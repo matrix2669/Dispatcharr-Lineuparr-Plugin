@@ -89,6 +89,8 @@ No API credentials are needed. The plugin runs inside Dispatcharr with direct da
 
 Then pick a lineup file and an M3U source, save, and run **Validate Settings** followed by **Preview Stream Match**. The [user guide](docs/USER-GUIDE.md#the-short-version) walks through it.
 
+Lineuparr can also download a generated lineup from GraceNoteScraper or another trusted HTTP service. Save the **Generated Lineup URL**, run **Import / Refresh Generated Lineup**, then reopen settings and select the imported lineup. The downloaded JSON persists in `/data/lineuparr/lineups` and can be refreshed in place without rebuilding the plugin.
+
 ### Updating
 
 Remove the old plugin from the **Plugins** page, restart Dispatcharr (`docker restart dispatcharr`), then import the new zip and enable it. Your settings are kept, but check them after upgrading.
@@ -130,7 +132,7 @@ python3 bump_version.py 1.26.1031200 # explicit
 
 **Lineuparr provides no television content of any kind.** It supplies no channels, no playlists, no streams, no electronic programme guide data and no provider accounts, and it contains no list of where to obtain any of those. The lineup files it ships are lists of channel names and channel numbers, compiled from publicly available provider channel listings. They contain no stream addresses, no credentials and no provider account details.
 
-The plugin never contacts a media provider. It never opens, fetches, decodes, records, restreams or redistributes any stream. It reads the stream names, EPG entries and channels that Dispatcharr already holds for the sources **you** configured, matches them by name against a lineup you chose, and writes the results back into Dispatcharr. The only network requests it makes on its own are to the [tv-logos](https://github.com/tv-logo/tv-logos) repository on GitHub, when you ask it to assign channel logos.
+The plugin never contacts a media provider. It never opens, fetches, decodes, records, restreams or redistributes any stream. It reads the stream names, EPG entries and channels that Dispatcharr already holds for the sources **you** configured, matches them by name against a lineup you chose, and writes the results back into Dispatcharr. Its own network requests are limited to the generated lineup URL you explicitly save and refresh, and the [tv-logos](https://github.com/tv-logo/tv-logos) repository on GitHub when you ask it to assign channel logos.
 
 **You are responsible for what you connect Dispatcharr to.** Whether a particular provider, subscription, playlist or stream is lawful for you to use depends on your agreement with that provider and on the law where you live. Use only sources you are authorised to use. Nothing in this project is intended to enable, encourage or assist access to content you have no right to access.
 

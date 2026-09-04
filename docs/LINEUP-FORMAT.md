@@ -51,8 +51,9 @@ a foreign stream attaching to one of these channels.
 Hyphens in the provider part become spaces in the dropdown label, so
 `US_Verizon-FIOS_lineup.json` reads as "Verizon FIOS (US)".
 
-Place the file in the plugin directory, `/data/plugins/lineuparr/`, and it
-appears in the **Lineup File** dropdown.
+Place a manually managed file in the plugin directory, `/data/plugins/lineuparr/`, or in the persistent lineup directory, `/data/lineuparr/lineups/`, and it appears in the **Lineup File** dropdown. Files in the persistent directory are labeled **Imported:** and survive plugin reinstalls.
+
+For an HTTP or HTTPS source such as GraceNoteScraper, save the endpoint in **Generated Lineup URL** and run **Import / Refresh Generated Lineup**. The response must use this same filename format in its `Content-Disposition` header or URL path. Lineuparr validates the document and atomically recreates the persistent copy.
 
 ---
 

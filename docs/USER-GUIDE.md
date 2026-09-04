@@ -43,11 +43,27 @@ tells you whether your match sensitivity is set sensibly for your source.
 
 ---
 
+## Generated lineups from GraceNoteScraper
+
+If GraceNoteScraper is building the lineup, Lineuparr can keep its own persistent copy without a plugin reinstall:
+
+1. Paste the GraceNoteScraper export endpoint into **Generated Lineup URL** and save the settings. For example, `http://gracenotescraper:8080/api/lineuparr/export` when both containers share a Docker network.
+2. Run **Import / Refresh Generated Lineup** on the Actions tab.
+3. Reopen the settings and select the entry prefixed **Imported:** under **Lineup File**.
+4. Run **Validate Settings** before syncing.
+
+The action accepts HTTP or HTTPS, validates the JSON before replacing anything, and writes it atomically under `/data/lineuparr/lineups`. Running it again recreates the file with the newest response and clears Lineuparr's in-memory lineup cache. If the generated filename changes, the earlier file managed by this action is removed after the new file is safely written. Other lineup files placed in the persistent directory are left alone.
+
+The server must provide a filename in the form `{CC}_{Provider}_lineup.json`, either through the HTTP `Content-Disposition` header or at the end of the URL. GraceNoteScraper's export endpoint already supplies this header. The country code is required for Lineuparr's country filtering and logo lookup. Do not put credentials in the URL; Lineuparr rejects URLs containing a username or password.
+
+---
+
 ## Settings reference
 
 | Setting | Type | Default | What it does |
 |---------|------|---------|--------------|
-| Lineup File | select | `US_DirecTV-Premier_lineup.json` | The provider lineup to mirror. The list is built from the `*_lineup.json` files in the plugin directory. |
+| Generated Lineup URL | string | *(empty)* | HTTP or HTTPS endpoint whose JSON is saved by the Import / Refresh Generated Lineup action. |
+| Lineup File | select | `US_DirecTV-Premier_lineup.json` | The provider lineup to mirror. The list includes built-in files and persistent files under `/data/lineuparr/lineups`. |
 | M3U Source | select | *(empty)* | Which M3U account's streams to match against. Leave unset to use every active source. |
 | Channel Profile | select | *(empty)* | Channel profile that synced channels are enabled in. |
 | Channel Group Prefix | string | *(empty)* | Prefix added to the channel group names the plugin creates. |
@@ -135,6 +151,7 @@ live on the Actions tab of the plugin panel:
 
 | Action | What it does |
 |---|---|
+| **Import / Refresh Generated Lineup** | Downloads and validates the saved Generated Lineup URL, then recreates its persistent JSON file. |
 | **Show Status** | Live progress of the running operation, or the result of the last one, without opening the container logs. |
 | **Validate Settings** | Checks the lineup file and M3U source and summarizes the lineup. |
 | **Preview Stream Match** | Dry run with a CSV export. Changes nothing. |
@@ -409,5 +426,6 @@ least one report through Newsflasharr, whatever the count file says.
 | Reports | `/data/lineuparr_reports/lineuparr_report_*.html` and `*.csv`, eight of each kept |
 | Report count | `/data/lineuparr/report_count.json`, read by Newsflasharr |
 | Plugin directory | `/data/plugins/lineuparr/` inside the Dispatcharr data volume |
-| Lineup files | the same plugin directory, named `{CC}_{Provider}_lineup.json` |
+| Built-in lineup files | the plugin directory, named `{CC}_{Provider}_lineup.json` |
+| Imported lineup files | `/data/lineuparr/lineups/{CC}_{Provider}_lineup.json`, kept across plugin reinstalls and container restarts |
 | Logs | `docker logs dispatcharr \| grep "Lineuparr"` |

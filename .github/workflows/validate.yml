@@ -12,6 +12,7 @@ on:
       - "Lineuparr/**"
       - "README.md"
       - ".github/scripts/validate_plugin.py"
+      - ".github/scripts/check_lineup_import.py"
       - ".github/scripts/check_matcher_golden.py"
       - ".github/scripts/matcher_golden_baseline.json"
       - ".github/scripts/check_core_parity.py"
@@ -24,6 +25,7 @@ on:
       - "Lineuparr/**"
       - "README.md"
       - ".github/scripts/validate_plugin.py"
+      - ".github/scripts/check_lineup_import.py"
       - ".github/scripts/check_matcher_golden.py"
       - ".github/scripts/matcher_golden_baseline.json"
       - ".github/scripts/check_core_parity.py"
@@ -46,6 +48,8 @@ jobs:
           python-version: "3.12"
       - name: Validate plugin runtime
         run: python .github/scripts/validate_plugin.py
+      - name: Generated lineup import checks
+        run: python .github/scripts/check_lineup_import.py
       # The vendored shared matching core must byte-compile and stay byte-identical to its
       # pinned hash (catches a CRLF checkout or a stray hand-edit to the vendored copy).
       - name: Vendored-core compile + parity gate

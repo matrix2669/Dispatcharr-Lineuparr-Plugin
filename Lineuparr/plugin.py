@@ -22,6 +22,7 @@ from .fuzzy_matcher import (FuzzyMatcher, has_upgrade_quality, detect_category_c
                             detect_name_country_prefix, country_codes_in_text)
 from .aliases import CHANNEL_ALIASES, COUNTRY_ALIASES
 from .progress_status import save_progress_atomic, load_progress, build_status_message
+from .lineup_import import LineupImportError, import_generated_lineup
 from . import notify_bridge, report_count, reports
 
 from apps.channels.models import Channel, ChannelGroup, ChannelProfile, ChannelProfileMembership, ChannelStream, Stream
@@ -140,6 +141,8 @@ class PluginConfig:
 
     DATA_DIR = "/data"
     EXPORTS_DIR = "/data/exports"
+    PERSISTENT_LINEUPS_DIR = "/data/lineuparr/lineups"
+    PERSISTENT_LINEUP_PREFIX = "persistent:"
     STATE_FILE = "/data/lineuparr_state.json"
     PROGRESS_FILE = "/data/lineuparr_progress.json"
     OPERATION_LOCK_FILE = "/data/lineuparr_operation.lock"
@@ -301,14 +304,59 @@ class Plugin:
             self._thread.start()
             return True
 
+    def _lineup_candidates(self):
+        """Return built-in and persistent lineup files with stable select values."""
+        plugin_dir = os.path.realpath(os.path.dirname(__file__))
+        sources = [
+            (plugin_dir, "", ""),
+            (
+                PluginConfig.PERSISTENT_LINEUPS_DIR,
+                PluginConfig.PERSISTENT_LINEUP_PREFIX,
+                "Imported",
+            ),
+        ]
+        candidates = []
+        for directory, prefix, source_label in sources:
+            for filepath in sorted(glob(os.path.join(directory, "*_lineup.json"))):
+                filename = os.path.basename(filepath)
+                candidates.append((filepath, prefix + filename, source_label))
+        return candidates
+
+    @staticmethod
+    def _lineup_filename(lineup_value):
+        value = str(lineup_value or "")
+        prefix = PluginConfig.PERSISTENT_LINEUP_PREFIX
+        if value.startswith(prefix):
+            value = value[len(prefix):]
+        return os.path.basename(value)
+
+    def _resolve_lineup_path(self, lineup_value):
+        """Resolve a selected built-in or persistent lineup inside its path jail."""
+        value = str(lineup_value or "")
+        prefix = PluginConfig.PERSISTENT_LINEUP_PREFIX
+        if value.startswith(prefix):
+            directory = os.path.realpath(PluginConfig.PERSISTENT_LINEUPS_DIR)
+            filename = value[len(prefix):]
+        else:
+            directory = os.path.realpath(os.path.dirname(__file__))
+            filename = value
+
+        if not filename or filename != os.path.basename(filename):
+            raise ValueError(f"Invalid lineup file selection: {value}")
+        filepath = os.path.realpath(os.path.join(directory, filename))
+        try:
+            inside_directory = os.path.commonpath([filepath, directory]) == directory
+        except ValueError:
+            inside_directory = False
+        if not inside_directory:
+            raise ValueError(f"Lineup file path escapes its directory: {value}")
+        return filepath
+
     @property
     def fields(self):
         """Dynamically generate field definitions with current options."""
-        # Discover lineup files
-        plugin_dir = os.path.dirname(__file__)
         lineup_options = []
-        lineup_metadata = {}
-        for f in sorted(glob(os.path.join(plugin_dir, "*_lineup.json"))):
+        for f, value, source_label in self._lineup_candidates():
             fname = os.path.basename(f)
             try:
                 with open(f, 'r', encoding='utf-8') as fh:
@@ -321,11 +369,10 @@ class Plugin:
                         base = f"{provider.replace('-', ' ')} ({cc}) - {chans} channels"
                     else:
                         base = f"{data.get('package', fname)} ({chans} channels)"
+                    if source_label:
+                        base = f"{source_label}: {base}"
                     label = f"{base} - {date_str}" if date_str else base
-                    lineup_options.append({"value": fname, "label": label})
-                    lineup_metadata[fname] = {
-                        "description": data.get("description", ""),
-                    }
+                    lineup_options.append({"value": value, "label": label})
             except Exception:
                 pass
         # Show the dropdown alphabetically by its visible label
@@ -378,12 +425,27 @@ class Plugin:
                 "help_text": "Choose the lineup to mirror and where streams and EPG data come from.",
             },
             {
+                "id": "generated_lineup_url",
+                "label": "Generated Lineup URL",
+                "type": "string",
+                "default": "",
+                "placeholder": "http://gracenotescraper:8080/api/lineuparr/export",
+                "help_text": (
+                    "Save an HTTP or HTTPS URL that returns Lineuparr JSON, then run "
+                    "Import / Refresh Generated Lineup. Imported files persist under "
+                    "/data/lineuparr/lineups. Do not put credentials in the URL."
+                ),
+            },
+            {
                 "id": "lineup_file",
                 "label": "Lineup File",
                 "type": "select",
                 "default": "US_DirecTV-Premier_lineup.json",
                 "options": lineup_options,
-                "help_text": "Select a provider channel lineup to mirror. Channels, groups, and numbering are based on this file.",
+                "help_text": (
+                    "Select a provider channel lineup to mirror. Channels, groups, and numbering "
+                    "are based on this file. Imported lineups appear after reopening the settings."
+                ),
             },
             {
                 "id": "m3u_sources",
@@ -599,6 +661,7 @@ class Plugin:
 
         try:
             action_map = {
+                "import_generated_lineup": self._import_generated_lineup,
                 "validate_settings": self._validate_settings,
                 "plugin_status": self._plugin_status,
                 "scan_lineups": self._scan_lineups,
@@ -672,20 +735,17 @@ class Plugin:
     def _load_lineup(self, settings, logger):
         """Load and parse the selected lineup JSON file."""
         lineup_file = settings.get("lineup_file", "")
-        plugin_dir = os.path.realpath(os.path.dirname(__file__))
-        filepath = os.path.realpath(os.path.join(plugin_dir, lineup_file))
-
-        # Prevent path traversal
-        if not filepath.startswith(plugin_dir + os.sep):
-            raise ValueError(f"Lineup file path escapes plugin directory: {lineup_file}")
+        filepath = self._resolve_lineup_path(lineup_file)
 
         detail = settings.get("category_detail", "normal")
-        cache_key = f"{filepath}:{detail}"
+        try:
+            stat = os.stat(filepath)
+            file_version = f"{stat.st_mtime_ns}:{stat.st_size}"
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Lineup file not found: {lineup_file}")
+        cache_key = f"{filepath}:{file_version}:{detail}"
         if self._lineup_cache and self._lineup_cache_file == cache_key:
             return self._lineup_cache
-
-        if not os.path.exists(filepath):
-            raise FileNotFoundError(f"Lineup file not found: {lineup_file}")
 
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -808,6 +868,7 @@ class Plugin:
         """Extract country code and provider from lineup filename.
         Format: {CC}_{Provider}_lineup.json
         Returns (country_code, provider) or (None, None) if format doesn't match."""
+        filename = self._lineup_filename(filename)
         match = re.match(r'^([A-Z]{2})_(.+)_lineup\.json$', filename)
         if match:
             return match.group(1), match.group(2)
@@ -1802,6 +1863,44 @@ class Plugin:
     # NON-DESTRUCTIVE ACTIONS
     # ========================================================================
 
+    def _import_generated_lineup(self, settings, logger):
+        """Download or refresh the configured generated lineup file."""
+        url = settings.get("generated_lineup_url", "")
+        try:
+            imported = import_generated_lineup(
+                url,
+                PluginConfig.PERSISTENT_LINEUPS_DIR,
+            )
+        except LineupImportError as exc:
+            logger.warning(f"{LOG_PREFIX} Generated lineup import rejected: {exc}")
+            return {"status": "error", "error": str(exc)}
+        except OSError:
+            logger.exception(f"{LOG_PREFIX} Could not save the generated lineup")
+            return {
+                "status": "error",
+                "error": "The generated lineup was valid but could not be saved under /data/lineuparr/lineups.",
+            }
+
+        self._lineup_cache = None
+        self._lineup_cache_file = None
+        selected_value = PluginConfig.PERSISTENT_LINEUP_PREFIX + imported["filename"]
+        currently_selected = settings.get("lineup_file") == selected_value
+        if currently_selected:
+            next_step = "It is already selected and will be used on the next Lineuparr action."
+        else:
+            next_step = "Reopen settings and select the Imported lineup under Lineup File."
+        warning = f" {imported['warning']}" if imported.get("warning") else ""
+        message = (
+            f"Imported {imported['package']} as {imported['filename']} "
+            f"({imported['channels']} channels in {imported['categories']} categories). "
+            f"{next_step}{warning}"
+        )
+        logger.info(
+            f"{LOG_PREFIX} Imported generated lineup {imported['filename']}: "
+            f"{imported['channels']} channels in {imported['categories']} categories"
+        )
+        return {"status": "ok", "message": message}
+
     def _validate_settings(self, settings, logger):
         """Check configuration validity."""
         results = []
@@ -1812,20 +1911,22 @@ class Plugin:
         if not lineup_file:
             results.append({"Setting": "Lineup File", "Value": "(none)", "Status": "ERROR: No lineup file selected"})
             errors += 1
-        elif os.path.exists(os.path.join(os.path.dirname(__file__), lineup_file)):
-            filepath = os.path.join(os.path.dirname(__file__), lineup_file)
+        else:
             try:
+                filepath = self._resolve_lineup_path(lineup_file)
+                if not os.path.exists(filepath):
+                    raise FileNotFoundError
                 with open(filepath, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 cats = len(data.get("categories", {}))
                 chans = sum(len(v) for v in data.get("categories", {}).values())
                 results.append({"Setting": "Lineup File", "Value": lineup_file, "Status": f"OK ({cats} categories, {chans} channels)"})
+            except FileNotFoundError:
+                results.append({"Setting": "Lineup File", "Value": lineup_file, "Status": "ERROR: File not found"})
+                errors += 1
             except Exception as e:
                 results.append({"Setting": "Lineup File", "Value": lineup_file, "Status": f"ERROR: {e}"})
                 errors += 1
-        else:
-            results.append({"Setting": "Lineup File", "Value": lineup_file, "Status": "ERROR: File not found"})
-            errors += 1
 
         # Check match sensitivity
         sensitivity = settings.get("match_sensitivity", "normal")
@@ -2009,17 +2110,13 @@ class Plugin:
 
     def _scan_lineups(self, settings, logger):
         """Discover available lineup JSON files."""
-        plugin_dir = os.path.dirname(__file__)
-        # Find all JSON files that look like lineups (contain "categories" key)
-        lineup_files = glob(os.path.join(plugin_dir, "*.json"))
-        # Exclude plugin.json
-        lineup_files = [f for f in lineup_files if os.path.basename(f) != "plugin.json"]
+        lineup_files = self._lineup_candidates()
 
         if not lineup_files:
-            return {"status": "error", "error": "No lineup JSON files found in plugin directory."}
+            return {"status": "error", "error": "No lineup JSON files found."}
 
         results = []
-        for f in lineup_files:
+        for f, value, source_label in lineup_files:
             fname = os.path.basename(f)
             try:
                 with open(f, 'r', encoding='utf-8') as fh:
@@ -2028,7 +2125,8 @@ class Plugin:
                 if not cats or not isinstance(cats, dict):
                     continue  # Not a lineup file
                 results.append({
-                    "File": fname,
+                    "File": value,
+                    "Location": source_label or "Built-in",
                     "Package": data.get("package", "Unknown"),
                     "Date": data.get("date", "N/A"),
                     "Categories": len(cats),

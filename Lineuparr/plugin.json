@@ -11,6 +11,14 @@
   "fields": [],
   "actions": [
     {
+      "id": "import_generated_lineup",
+      "label": "Import or Refresh Generated Lineup",
+      "button_label": "Import / Refresh",
+      "description": "Download the saved Generated Lineup URL and recreate its JSON file under /data/lineuparr/lineups",
+      "button_variant": "outline",
+      "button_color": "cyan"
+    },
+    {
       "id": "validate_settings",
       "label": "Validate Settings",
       "button_label": "✅ Validate",
