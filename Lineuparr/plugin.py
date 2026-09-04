@@ -1903,13 +1903,16 @@ class Plugin:
             logger.exception(f"{LOG_PREFIX} Could not select the imported lineup")
             return displayed_action_error(
                 f"Lineup file {imported['filename']} was {imported['operation']}, "
-                "but could not be selected as active. Select it manually in Settings.",
+                "but its settings could not be updated. Select it manually and "
+                "set Match Sensitivity to Exact in Settings.",
                 file=imported["filename"],
                 operation=imported["operation"],
             )
         settings["lineup_file"] = selected_value
+        settings["match_sensitivity"] = "exact"
         next_step = (
-            "Selected as your active lineup. You may need to disable and re-enable "
+            "Selected as your active lineup with Match Sensitivity set to Exact. "
+            "You may need to disable and re-enable "
             "the plugin for it to show correctly in Settings."
         )
         if imported["operation"] == "refreshed":
@@ -1933,7 +1936,7 @@ class Plugin:
         }
 
     def _select_imported_lineup(self, selected_value):
-        """Persist only the lineup selection using Dispatcharr's directory key."""
+        """Persist lineup selection and Exact sensitivity together."""
         from apps.plugins.models import PluginConfig as StoredPluginConfig
 
         plugin_key = os.path.basename(os.path.dirname(__file__)).replace(" ", "_").lower()
@@ -1941,6 +1944,7 @@ class Plugin:
             config = StoredPluginConfig.objects.select_for_update().get(key=plugin_key)
             saved_settings = dict(config.settings or {})
             saved_settings["lineup_file"] = selected_value
+            saved_settings["match_sensitivity"] = "exact"
             config.settings = saved_settings
             config.save(update_fields=["settings", "updated_at"])
 

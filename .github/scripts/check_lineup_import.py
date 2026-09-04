@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """Offline regression checks for generated lineup URL imports."""
 
+import ast
 import io
 import json
+import os
 import sys
 import tempfile
+from contextlib import nullcontext
 from email.message import Message
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.error import URLError
+from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -73,7 +78,66 @@ def captured_error(callable_):
     raise AssertionError("expected LineupImportError")
 
 
+def check_import_settings():
+    """Exercise the actual action methods without requiring a Django install."""
+    source = ROOT / "Lineuparr" / "plugin.py"
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    plugin = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Plugin")
+    methods = [n for n in plugin.body if isinstance(n, ast.FunctionDef)
+               and n.name in {"_import_generated_lineup", "_select_imported_lineup"}]
+    assert len(methods) == 2
+    namespace = {
+        "__file__": str(source), "os": os, "transaction": SimpleNamespace(atomic=nullcontext),
+        "PluginConfig": SimpleNamespace(PERSISTENT_LINEUPS_DIR="/unused", PERSISTENT_LINEUP_PREFIX="persistent:"),
+        "LOG_PREFIX": "test", "LineupImportError": LineupImportError,
+        "displayed_action_error": lambda message, **kw: dict(status="error", message=message, **kw),
+    }
+    exec(compile(ast.Module(body=methods, type_ignores=[]), str(source), "exec"), namespace)
+    action = namespace["_import_generated_lineup"]
+    select = namespace["_select_imported_lineup"]
+    old = {"lineup_file": "old.json", "match_sensitivity": "relaxed", "unrelated": True}
+    for operation in ("created", "refreshed"):
+        config = SimpleNamespace(settings=dict(old), save=Mock())
+        manager = Mock()
+        manager.select_for_update.return_value.get.return_value = config
+        model = SimpleNamespace(PluginConfig=SimpleNamespace(objects=manager))
+        instance = SimpleNamespace()
+        instance._select_imported_lineup = lambda value: select(instance, value)
+        namespace["import_generated_lineup"] = Mock(return_value={
+            "filename": "US_Test_lineup.json", "operation": operation,
+            "package": "Test", "channels": 1, "categories": 1,
+        })
+        settings = dict(old)
+        with patch.dict(sys.modules, {"apps.plugins.models": model}):
+            result = action(instance, settings, Mock())
+        expected = dict(old, lineup_file="persistent:US_Test_lineup.json", match_sensitivity="exact")
+        assert config.settings == settings == expected
+        config.save.assert_called_once_with(update_fields=["settings", "updated_at"])
+        manager.select_for_update.return_value.get.assert_called_once_with(key="lineuparr")
+        assert result["status"] == "ok" and "Exact" in result["message"]
+
+    namespace["import_generated_lineup"] = Mock(side_effect=LineupImportError("Invalid lineup"))
+    instance = SimpleNamespace(_select_imported_lineup=Mock())
+    settings = dict(old)
+    assert action(instance, settings, Mock())["status"] == "error"
+    assert settings == old
+    instance._select_imported_lineup.assert_not_called()
+
+    namespace["import_generated_lineup"] = Mock(return_value={
+        "filename": "US_Test_lineup.json", "operation": "refreshed",
+    })
+    instance._select_imported_lineup = Mock(side_effect=RuntimeError("save failed"))
+    result = action(instance, settings, Mock())
+    assert result["status"] == "error" and result["operation"] == "refreshed"
+    assert "Exact" in result["message"] and settings == old
+
+    manifest = json.loads((ROOT / "Lineuparr" / "plugin.json").read_text(encoding="utf-8"))
+    confirm = next(a for a in manifest["actions"] if a["id"] == "import_generated_lineup")["confirm"]
+    assert "Match Sensitivity" in confirm["message"] and "Exact" in confirm["message"]
+
+
 def main():
+    check_import_settings()
     url = "http://gracenotescraper/api/lineuparr/export"
     with tempfile.TemporaryDirectory() as temp_dir:
         result = import_generated_lineup(
