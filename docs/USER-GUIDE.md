@@ -300,6 +300,12 @@ run's summary. The container logs carry the same detail.
 
 ## How matching works
 
+Before stream matching starts, a channel's optional `excluded_aliases` removes
+known wrong stream names using the same normalization as positive aliases. An
+exclusion wins over every matching stage for that channel, while leaving the
+stream available to match a different channel. See the
+[lineup file format](LINEUP-FORMAT.md#per-channel-excluded-aliases).
+
 Each lineup channel goes through four stages, in order, and stops at the first
 that produces a confident answer:
 

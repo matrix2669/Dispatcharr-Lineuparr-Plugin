@@ -55,6 +55,51 @@ def has_upgrade_quality(name: str) -> bool:
     return bool(_UPGRADE_QUALITY_RE.search(name))
 
 
+def parse_excluded_aliases(raw, logger=None, channel_name=None):
+    """Return a clean, de-duplicated list of channel-scoped exclusions.
+
+    A lineup may use one string or a list of strings. Invalid values are
+    ignored together and produce at most one warning for the channel, so one
+    malformed list cannot flood a long matching run. Values are still plain
+    text here; match_all_streams applies the normal Lineuparr normalization.
+    """
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        values = [raw]
+    elif isinstance(raw, list):
+        values = raw
+    else:
+        if logger is not None:
+            label = f" for channel '{channel_name}'" if channel_name else ""
+            logger.warning(
+                f"[Lineuparr] Ignoring excluded_aliases{label}: expected a string or list"
+            )
+        return []
+
+    cleaned = []
+    seen = set()
+    invalid = 0
+    for value in values:
+        if not isinstance(value, str) or not value.strip():
+            invalid += 1
+            continue
+        value = value.strip()
+        key = value.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(value)
+
+    if invalid and logger is not None:
+        label = f" for channel '{channel_name}'" if channel_name else ""
+        logger.warning(
+            f"[Lineuparr] Ignored {invalid} empty or non-string excluded_aliases "
+            f"value{'s' if invalid != 1 else ''}{label}"
+        )
+    return cleaned
+
+
 # Country tokens for the delimited provider-prefix patterns below; curated so a
 # bare delimited word ("(SPORTS)") isn't misread as a country. Keep in sync with
 # detect_stream_country().
@@ -699,7 +744,7 @@ class FuzzyMatcher(FuzzyMatcherCore):
 
     def match_all_streams(self, lineup_name, candidate_names, alias_map, channel_number=None,
                           user_ignored_tags=None, lineup_country=None, quality_aware=False,
-                          candidate_countries=None):
+                          candidate_countries=None, excluded_aliases=None):
         """
         Full matching pipeline for Lineuparr: alias → exact → substring → fuzzy, with number boost.
         Returns ALL matching streams sorted by score.
@@ -718,6 +763,9 @@ class FuzzyMatcher(FuzzyMatcherCore):
                 name carries no country marker, which is the common case for providers
                 that prefix by platform ("GO:", "RK:", "PRIME:") rather than by country.
                 Omit it and matching behaves exactly as it did before.
+            excluded_aliases: Optional string or list of stream names that must not
+                match this channel. Values use the same normalization as positive
+                aliases and are applied before every positive matching path.
 
         Returns:
             List of (stream_name, score, match_type) tuples sorted by score desc.
@@ -727,6 +775,25 @@ class FuzzyMatcher(FuzzyMatcherCore):
 
         if user_ignored_tags is None:
             user_ignored_tags = []
+
+        # Channel-scoped exclusions are final. Filter before quality-aware alias
+        # bypass, alias/callsign rescue, exact, substring, fuzzy, country/region
+        # handling, and number boosts so no later stage can restore a denied pair.
+        excluded_keys = set()
+        for value in parse_excluded_aliases(excluded_aliases):
+            normalized = self.normalize_name(value, user_ignored_tags)
+            if not normalized:
+                continue
+            normalized = normalized.lower()
+            excluded_keys.add(normalized)
+            excluded_keys.add(re.sub(r'[\s&\-]+', '', normalized))
+        if excluded_keys:
+            candidate_names = [
+                candidate for candidate in candidate_names
+                if not self._candidate_is_excluded(candidate, excluded_keys, user_ignored_tags)
+            ]
+            if not candidate_names:
+                return []
 
         # Quality-aware pre-filtering (opt-in via quality_aware).
         # Both tiers are gated: upgrade channels only match upgrade streams,
@@ -1036,3 +1103,11 @@ class FuzzyMatcher(FuzzyMatcherCore):
         )
         return results
 
+    def _candidate_is_excluded(self, candidate, excluded_keys, user_ignored_tags=None):
+        """Return True when candidate equals a normalized literal exclusion."""
+        candidate_lower, candidate_nospace = self._get_cached_norm(
+            candidate, user_ignored_tags
+        )
+        if not candidate_lower:
+            return False
+        return candidate_lower in excluded_keys or candidate_nospace in excluded_keys
