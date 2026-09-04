@@ -1917,11 +1917,21 @@ class Plugin:
         self._lineup_cache = None
         self._lineup_cache_file = None
         selected_value = PluginConfig.PERSISTENT_LINEUP_PREFIX + imported["filename"]
-        currently_selected = settings.get("lineup_file") == selected_value
-        if currently_selected:
-            next_step = "It is already selected and will be used on the next Lineuparr action."
-        else:
-            next_step = "Reopen settings and select the Imported lineup under Lineup File."
+        try:
+            self._select_imported_lineup(selected_value)
+        except Exception:
+            logger.exception(f"{LOG_PREFIX} Could not select the imported lineup")
+            return displayed_action_error(
+                f"Lineup file {imported['filename']} was {imported['operation']}, "
+                "but could not be selected as active. Select it manually in Settings.",
+                file=imported["filename"],
+                operation=imported["operation"],
+            )
+        settings["lineup_file"] = selected_value
+        next_step = (
+            "Selected as your active lineup. You may need to disable and re-enable "
+            "the plugin for it to show correctly in Settings."
+        )
         if imported["operation"] == "refreshed":
             outcome = f"Refreshed lineup file: {imported['filename']}."
         else:
@@ -1941,6 +1951,18 @@ class Plugin:
             "file": imported["filename"],
             "operation": imported["operation"],
         }
+
+    def _select_imported_lineup(self, selected_value):
+        """Persist only the lineup selection using Dispatcharr's directory key."""
+        from apps.plugins.models import PluginConfig as StoredPluginConfig
+
+        plugin_key = os.path.basename(os.path.dirname(__file__)).replace(" ", "_").lower()
+        with transaction.atomic():
+            config = StoredPluginConfig.objects.select_for_update().get(key=plugin_key)
+            saved_settings = dict(config.settings or {})
+            saved_settings["lineup_file"] = selected_value
+            config.settings = saved_settings
+            config.save(update_fields=["settings", "updated_at"])
 
     def _validate_settings(self, settings, logger):
         """Check configuration validity."""
