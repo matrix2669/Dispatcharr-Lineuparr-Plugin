@@ -58,10 +58,11 @@ def result_text(result, default=""):
 
     Dispatcharr renders `error` in red and persistently, and `message` as a
     green toast that closes itself, so a failure puts its reason under `error`
-    and a success puts its summary under `message`. Nothing sets both. Anything
-    that consumes another action's result therefore has to look in both places,
-    and reading only `message` would raise a KeyError at the exact moment a
-    step failed, which is the moment the text is most needed.
+    and a success puts its summary under `message`. Compatibility helpers may
+    mirror safe error text into both fields for Dispatcharr panels that inspect
+    only `message`. Anything that consumes another action's result therefore has
+    to look in both places, and reading only `message` would otherwise raise a
+    KeyError at the exact moment a step failed, which is when the text is needed.
 
     `error` wins when both are somehow present, because a failure the operator
     must see outranks a summary. An empty string counts as absent.
@@ -84,6 +85,17 @@ def action_result(status, text, **extra):
     """
     key = "error" if status == "error" else "message"
     return {"status": status, key: text, **extra}
+
+
+def displayed_action_error(text, **extra):
+    """Return an error that current Dispatcharr panels can also show in a toast.
+
+    Dispatcharr reports a handled plugin error as a successful HTTP request. Its
+    action toast reads only ``result.message`` while the persistent action status
+    reads ``result.error``. Mirroring the same safe text into both fields avoids
+    the generic "Plugin action completed" toast without losing the error status.
+    """
+    return {"status": "error", "error": text, "message": text, **extra}
 
 
 # BOM + zero-width characters that sneak in from rich-text paste (editors,
@@ -1893,13 +1905,14 @@ class Plugin:
             )
         except LineupImportError as exc:
             logger.warning(f"{LOG_PREFIX} Generated lineup import rejected: {exc}")
-            return {"status": "error", "error": str(exc)}
+            return displayed_action_error(str(exc))
         except OSError:
             logger.exception(f"{LOG_PREFIX} Could not save the generated lineup")
-            return {
-                "status": "error",
-                "error": "The generated lineup was valid but could not be saved under /data/lineuparr/lineups.",
-            }
+            message = (
+                "The generated lineup was valid but could not be saved under "
+                "/data/lineuparr/lineups."
+            )
+            return displayed_action_error(message)
 
         self._lineup_cache = None
         self._lineup_cache_file = None
@@ -1909,16 +1922,25 @@ class Plugin:
             next_step = "It is already selected and will be used on the next Lineuparr action."
         else:
             next_step = "Reopen settings and select the Imported lineup under Lineup File."
+        if imported["operation"] == "refreshed":
+            outcome = f"Refreshed lineup file: {imported['filename']}."
+        else:
+            outcome = f"Created new lineup file: {imported['filename']}."
         message = (
-            f"Imported {imported['package']} as {imported['filename']} "
-            f"({imported['channels']} channels in {imported['categories']} categories). "
-            f"{next_step}"
+            f"{outcome} {imported['package']} contains {imported['channels']} channels "
+            f"in {imported['categories']} categories. {next_step}"
         )
         logger.info(
-            f"{LOG_PREFIX} Imported generated lineup {imported['filename']}: "
+            f"{LOG_PREFIX} {imported['operation'].title()} generated lineup "
+            f"{imported['filename']}: "
             f"{imported['channels']} channels in {imported['categories']} categories"
         )
-        return {"status": "ok", "message": message}
+        return {
+            "status": "ok",
+            "message": message,
+            "file": imported["filename"],
+            "operation": imported["operation"],
+        }
 
     def _validate_settings(self, settings, logger):
         """Check configuration validity."""

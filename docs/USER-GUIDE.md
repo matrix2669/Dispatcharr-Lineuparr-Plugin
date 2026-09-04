@@ -52,7 +52,7 @@ If GraceNoteScraper is building the lineup, Lineuparr can keep its own persisten
 3. Reopen the settings and select the entry prefixed **Imported:** under **Lineup File**.
 4. Run **Validate Settings** before syncing.
 
-The action accepts HTTP or HTTPS, validates the JSON before replacing anything, and writes it atomically under `/data/lineuparr/lineups`. Running it again with the same generated filename recreates that file with the newest response and clears Lineuparr's in-memory lineup cache. If the generated filename is different, it is saved as another persistent lineup; existing lineup files are never deleted by this action.
+The action accepts HTTP or HTTPS, validates the JSON before replacing anything, and writes it atomically under `/data/lineuparr/lineups`. Its result identifies an empty or unreachable URL, or reports **Created new lineup file** or **Refreshed lineup file** with the exact filename. Running it again with the same generated filename recreates that file with the newest response and clears Lineuparr's in-memory lineup cache. If the generated filename is different, it is saved as another persistent lineup; existing lineup files are never deleted by this action.
 
 The server must provide a filename in the form `{CC}_{Provider}_lineup.json`, either through the HTTP `Content-Disposition` header or at the end of the URL. GraceNoteScraper's export endpoint already supplies this header. The country code is required for Lineuparr's country filtering and logo lookup. Do not put credentials in the URL; Lineuparr rejects URLs containing a username or password.
 
@@ -151,7 +151,7 @@ live on the Actions tab of the plugin panel:
 
 | Action | What it does |
 |---|---|
-| **Import / Refresh Generated Lineup** | Downloads and validates the saved Generated Lineup URL, then recreates its persistent JSON file. |
+| **Import / Refresh Generated Lineup** | Downloads and validates the saved Generated Lineup URL, then reports whether the named persistent JSON file was created or refreshed. |
 | **Show Status** | Live progress of the running operation, or the result of the last one, without opening the container logs. |
 | **Validate Settings** | Checks the lineup file and M3U source and summarizes the lineup. |
 | **Preview Stream Match** | Dry run with a CSV export. Changes nothing. |

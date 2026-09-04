@@ -25,7 +25,9 @@ class LineupImportError(ValueError):
 def _validated_http_url(value):
     url = str(value or "").strip()
     if not url:
-        raise LineupImportError("Enter a generated lineup URL first.")
+        raise LineupImportError(
+            "Generated Lineup URL is empty. Enter a URL and save settings before importing."
+        )
     if len(url) > 4096:
         raise LineupImportError("The generated lineup URL is too long.")
 
@@ -168,29 +170,30 @@ def import_generated_lineup(url, destination_dir, opener=None,
         with opener(request, timeout=timeout) as response:
             status = getattr(response, "status", 200)
             if status < 200 or status >= 300:
-                raise LineupImportError(f"The generated lineup server returned HTTP {status}.")
+                raise LineupImportError(f"The Generated Lineup URL returned HTTP {status}.")
             filename = _response_filename(response)
             payload = _read_response(response, max_bytes)
     except LineupImportError:
         raise
     except HTTPError as exc:
-        raise LineupImportError(f"The generated lineup server returned HTTP {exc.code}.") from exc
+        raise LineupImportError(f"The Generated Lineup URL returned HTTP {exc.code}.") from exc
     except URLError as exc:
-        raise LineupImportError("Could not connect to the generated lineup server.") from exc
+        raise LineupImportError("The Generated Lineup URL is unreachable.") from exc
     except TimeoutError as exc:
-        raise LineupImportError("The generated lineup request timed out.") from exc
+        raise LineupImportError("The Generated Lineup URL timed out.") from exc
     except OSError as exc:
-        raise LineupImportError("Could not download the generated lineup.") from exc
+        raise LineupImportError("The Generated Lineup URL could not be downloaded.") from exc
     except Exception as exc:
         # Do not echo arbitrary request-library errors because they can contain
         # the configured URL, including private query parameters.
-        raise LineupImportError("Could not download the generated lineup.") from exc
+        raise LineupImportError("The Generated Lineup URL could not be downloaded.") from exc
 
     data, category_count, channel_count = validate_lineup_document(payload)
 
     os.makedirs(destination_dir, mode=0o700, exist_ok=True)
     destination_dir = os.path.realpath(destination_dir)
     destination_path = os.path.join(destination_dir, filename)
+    operation = "refreshed" if os.path.lexists(destination_path) else "created"
     _atomic_json_write(destination_path, data)
 
     package = data.get("package")
@@ -202,4 +205,5 @@ def import_generated_lineup(url, destination_dir, opener=None,
         "package": package,
         "categories": category_count,
         "channels": channel_count,
+        "operation": operation,
     }
