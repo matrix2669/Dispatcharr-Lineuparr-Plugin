@@ -15,8 +15,8 @@
       "label": "Import or Refresh Generated Lineup",
       "button_label": "Import / Refresh",
       "confirm": {
-        "title": "Import and select active lineup?",
-        "message": "After a successful import or refresh, this lineup will be selected as your active lineup and Match Sensitivity will be set to Exact. You may need to disable and re-enable the plugin for these changes to show correctly in Settings. Continue?"
+        "title": "Import or refresh Lineup from URL?",
+        "message": "To use the imported lineup immediately, you must select \"Lineup from URL\" in the Lineup File dropdown. Alternatively, reload the plugin after importing to show the imported lineup as a separate dropdown option, then select it. \"Lineup from URL\" always uses Exact matching. Continue?"
       },
       "description": "Download the saved Generated Lineup URL and recreate its JSON file under /data/lineuparr/lineups",
       "button_variant": "outline",

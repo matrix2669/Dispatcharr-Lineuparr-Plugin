@@ -89,7 +89,7 @@ No API credentials are needed. The plugin runs inside Dispatcharr with direct da
 
 Then pick a lineup file and an M3U source, save, and run **Validate Settings** followed by **Preview Stream Match**. The [user guide](docs/USER-GUIDE.md#the-short-version) walks through it.
 
-Lineuparr can also download a generated lineup from GraceNoteScraper or another trusted HTTP service. Save the **Generated Lineup URL** and run **Import / Refresh Generated Lineup**. A confirmation explains that each successful import or refresh selects the lineup as active and sets **Match Sensitivity** to **Exact**. The result identifies an empty or unreachable URL, or names the lineup file that was created or refreshed. You may need to disable and re-enable the plugin for these changes to show correctly in Settings. The downloaded JSON persists in `/data/lineuparr/lineups` and can be refreshed in place without rebuilding the plugin.
+Lineuparr can download a generated lineup from GraceNoteScraper or another trusted HTTP service. Enter the **Generated Lineup URL**, select **Lineup from URL** once, then run **Import / Refresh Generated Lineup**. Dispatcharr saves panel settings before the action; no separate save is needed. This permanent option follows the latest successful import with **Exact** matching, regardless of the sensitivity dropdown. Proceed directly to Preview without toggling the plugin. Individual imported files remain saved under `/data/lineuparr/lineups` and appear separately after reloading the plugin. Imports do not override an explicitly selected built-in or individual lineup.
 
 ### Updating
 

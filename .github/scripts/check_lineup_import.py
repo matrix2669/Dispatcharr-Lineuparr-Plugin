@@ -79,61 +79,74 @@ def captured_error(callable_):
 
 
 def check_import_settings():
-    """Exercise the actual action methods without requiring a Django install."""
+    """Exercise the real action boundary with a stale-but-stable UI selection."""
+    from lineup_import import current_import_filename
     source = ROOT / "Lineuparr" / "plugin.py"
     tree = ast.parse(source.read_text(encoding="utf-8"))
     plugin = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Plugin")
     methods = [n for n in plugin.body if isinstance(n, ast.FunctionDef)
-               and n.name in {"_import_generated_lineup", "_select_imported_lineup"}]
-    assert len(methods) == 2
-    namespace = {
-        "__file__": str(source), "os": os, "transaction": SimpleNamespace(atomic=nullcontext),
-        "PluginConfig": SimpleNamespace(PERSISTENT_LINEUPS_DIR="/unused", PERSISTENT_LINEUP_PREFIX="persistent:"),
-        "LOG_PREFIX": "test", "LineupImportError": LineupImportError,
-        "displayed_action_error": lambda message, **kw: dict(status="error", message=message, **kw),
-    }
-    exec(compile(ast.Module(body=methods, type_ignores=[]), str(source), "exec"), namespace)
-    action = namespace["_import_generated_lineup"]
-    select = namespace["_select_imported_lineup"]
-    old = {"lineup_file": "old.json", "match_sensitivity": "relaxed", "unrelated": True}
-    for operation in ("created", "refreshed"):
-        config = SimpleNamespace(settings=dict(old), save=Mock())
-        manager = Mock()
-        manager.select_for_update.return_value.get.return_value = config
-        model = SimpleNamespace(PluginConfig=SimpleNamespace(objects=manager))
+               and n.name in {"_import_generated_lineup", "_effective_lineup_settings", "run"}]
+    assert len(methods) == 3
+    with tempfile.TemporaryDirectory() as directory:
+        namespace = {
+            "__file__": str(source), "os": os,
+            "PluginConfig": SimpleNamespace(PERSISTENT_LINEUPS_DIR=directory,
+                PERSISTENT_LINEUP_PREFIX="persistent:", URL_LINEUP_VALUE="url:latest"),
+            "LOG_PREFIX": "test", "LOGGER": Mock(), "LineupImportError": LineupImportError,
+            "current_import_filename": current_import_filename,
+            "result_text": lambda result: str(result),
+            "displayed_action_error": lambda message, **kw: dict(status="error", message=message, **kw),
+        }
+        exec(compile(ast.Module(body=methods, type_ignores=[]), str(source), "exec"), namespace)
         instance = SimpleNamespace()
-        instance._select_imported_lineup = lambda value: select(instance, value)
-        namespace["import_generated_lineup"] = Mock(return_value={
-            "filename": "US_Test_lineup.json", "operation": operation,
-            "package": "Test", "channels": 1, "categories": 1,
-        })
-        settings = dict(old)
-        with patch.dict(sys.modules, {"apps.plugins.models": model}):
-            result = action(instance, settings, Mock())
-        expected = dict(old, lineup_file="persistent:US_Test_lineup.json", match_sensitivity="exact")
-        assert config.settings == settings == expected
-        config.save.assert_called_once_with(update_fields=["settings", "updated_at"])
-        manager.select_for_update.return_value.get.assert_called_once_with(key="lineuparr")
-        assert result["status"] == "ok" and "Exact" in result["message"]
-
-    namespace["import_generated_lineup"] = Mock(side_effect=LineupImportError("Invalid lineup"))
-    instance = SimpleNamespace(_select_imported_lineup=Mock())
-    settings = dict(old)
-    assert action(instance, settings, Mock())["status"] == "error"
-    assert settings == old
-    instance._select_imported_lineup.assert_not_called()
-
-    namespace["import_generated_lineup"] = Mock(return_value={
-        "filename": "US_Test_lineup.json", "operation": "refreshed",
-    })
-    instance._select_imported_lineup = Mock(side_effect=RuntimeError("save failed"))
-    result = action(instance, settings, Mock())
-    assert result["status"] == "error" and result["operation"] == "refreshed"
-    assert "Exact" in result["message"] and settings == old
+        for method in methods:
+            setattr(instance, method.name, namespace[method.name].__get__(instance))
+        # Dispatcharr repeatedly sends the same settings, including its old sensitivity.
+        settings = {"lineup_file": "url:latest", "match_sensitivity": "normal", "unrelated": True}
+        original = dict(settings)
+        require_raises(lambda: instance._effective_lineup_settings(settings))
+        for name, operation in [("US_Test_lineup.json", "created"),
+                                ("US_Test_lineup.json", "refreshed"),
+                                ("CA_Other_lineup.json", "created")]:
+            namespace["import_generated_lineup"] = lambda url, dest: import_generated_lineup(
+                "http://gracenotescraper/api/lineuparr/export", dest,
+                opener=opener_for(lineup(), name))
+            result = instance._import_generated_lineup(settings, Mock())
+            assert result["status"] == "ok" and result["operation"] == operation
+            effective = instance._effective_lineup_settings(settings)
+            assert effective == dict(original, lineup_file="persistent:" + name, match_sensitivity="exact")
+            assert settings == original
+        assert (Path(directory) / "US_Test_lineup.json").exists()
+        # A fresh reader (process/restart) sees the last successful import.
+        assert current_import_filename(directory) == "CA_Other_lineup.json"
+        namespace["import_generated_lineup"] = Mock(side_effect=LineupImportError("Invalid lineup"))
+        assert instance._import_generated_lineup(settings, Mock())["status"] == "error"
+        assert current_import_filename(directory) == "CA_Other_lineup.json"
+        manual = dict(settings, lineup_file="US_Manual_lineup.json", match_sensitivity="relaxed")
+        assert instance._effective_lineup_settings(manual) == manual
+        # Action routing must actually pass the effective selection to Preview.
+        for name in ("_validate_settings", "_plugin_status", "_scan_lineups", "_preview_stream_match",
+                     "_full_sync", "_sync_channels", "_apply_stream_match", "_apply_epg_match",
+                     "_assign_logos", "_resort_streams", "_clear_csv_exports", "_email_report",
+                     "_preview_groups", "_sync_groups", "_preview_channels"):
+            setattr(instance, name, Mock(return_value={"status": "ok"}))
+        # Bind every action-map handler from source, including legacy names.
+        run_node = next(m for m in methods if m.name == "run")
+        for node in ast.walk(run_node):
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "self":
+                if not hasattr(instance, node.attr):
+                    setattr(instance, node.attr, Mock(return_value={"status": "ok"}))
+        instance.run("preview_stream_match", {}, {"settings": settings, "logger": Mock()})
+        args = instance._preview_stream_match.call_args.args
+        assert args[0]["lineup_file"] == "persistent:CA_Other_lineup.json"
+        assert args[0]["match_sensitivity"] == "exact" and settings == original
+        # Malformed pointer cannot select paths outside persistent storage.
+        (Path(directory) / ".current-url-import.json").write_text('{"filename":"../escape"}')
+        require_raises(lambda: instance._effective_lineup_settings(settings))
 
     manifest = json.loads((ROOT / "Lineuparr" / "plugin.json").read_text(encoding="utf-8"))
     confirm = next(a for a in manifest["actions"] if a["id"] == "import_generated_lineup")["confirm"]
-    assert "Match Sensitivity" in confirm["message"] and "Exact" in confirm["message"]
+    assert "Lineup from URL" in confirm["message"] and "reload the plugin" in confirm["message"]
 
 
 def main():

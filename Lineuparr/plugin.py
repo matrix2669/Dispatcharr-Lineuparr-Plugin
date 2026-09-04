@@ -22,7 +22,7 @@ from .fuzzy_matcher import (FuzzyMatcher, has_upgrade_quality, detect_category_c
                             detect_name_country_prefix, country_codes_in_text)
 from .aliases import CHANNEL_ALIASES, COUNTRY_ALIASES
 from .progress_status import save_progress_atomic, load_progress, build_status_message
-from .lineup_import import LineupImportError, import_generated_lineup
+from .lineup_import import LineupImportError, import_generated_lineup, current_import_filename
 from . import notify_bridge, report_count, reports
 
 from apps.channels.models import Channel, ChannelGroup, ChannelProfile, ChannelProfileMembership, ChannelStream, Stream
@@ -155,6 +155,7 @@ class PluginConfig:
     EXPORTS_DIR = "/data/exports"
     PERSISTENT_LINEUPS_DIR = "/data/lineuparr/lineups"
     PERSISTENT_LINEUP_PREFIX = "persistent:"
+    URL_LINEUP_VALUE = "url:latest"
     STATE_FILE = "/data/lineuparr_state.json"
     PROGRESS_FILE = "/data/lineuparr_progress.json"
     OPERATION_LOCK_FILE = "/data/lineuparr_operation.lock"
@@ -391,6 +392,7 @@ class Plugin:
         lineup_options.sort(key=lambda o: o["label"].lower())
         if not lineup_options:
             lineup_options = [{"value": "_none", "label": "No lineup files found"}]
+        lineup_options.insert(0, {"value": PluginConfig.URL_LINEUP_VALUE, "label": "Lineup from URL"})
 
         # Discover M3U sources
         m3u_options = [{"value": "_all", "label": "All sources"}]
@@ -456,7 +458,8 @@ class Plugin:
                 "options": lineup_options,
                 "help_text": (
                     "Select a provider channel lineup to mirror. Channels, groups, and numbering "
-                    "are based on this file. Imported lineups appear after reopening the settings."
+                    "are based on this file. Lineup from URL uses the latest successful import with "
+                    "Exact matching. Select it once before importing. Individual imports appear after refreshing the plugin."
                 ),
             },
             {
@@ -556,7 +559,7 @@ class Plugin:
                     {"value": "strict", "label": "Strict - fewer matches, high confidence"},
                     {"value": "exact", "label": "Exact - near-exact matches only"},
                 ],
-                "help_text": "How closely stream and EPG names must match channel names. Lower = more matches but more errors.",
+                "help_text": "How closely stream and EPG names must match channel names. Lower = more matches but more errors. Lineup from URL always uses Exact regardless of this dropdown.",
             },
             {
                 "id": "refresh_epg_after_match",
@@ -672,6 +675,9 @@ class Plugin:
         settings = context.get("settings", {})
 
         try:
+            if action not in {"import_generated_lineup", "plugin_status", "scan_lineups",
+                              "clear_csv_exports", "email_report"}:
+                settings = self._effective_lineup_settings(settings)
             action_map = {
                 "import_generated_lineup": self._import_generated_lineup,
                 "validate_settings": self._validate_settings,
@@ -1896,25 +1902,13 @@ class Plugin:
 
         self._lineup_cache = None
         self._lineup_cache_file = None
-        selected_value = PluginConfig.PERSISTENT_LINEUP_PREFIX + imported["filename"]
-        try:
-            self._select_imported_lineup(selected_value)
-        except Exception:
-            logger.exception(f"{LOG_PREFIX} Could not select the imported lineup")
-            return displayed_action_error(
-                f"Lineup file {imported['filename']} was {imported['operation']}, "
-                "but its settings could not be updated. Select it manually and "
-                "set Match Sensitivity to Exact in Settings.",
-                file=imported["filename"],
-                operation=imported["operation"],
+        if settings.get("lineup_file") == PluginConfig.URL_LINEUP_VALUE:
+            next_step = "Lineup from URL is ready for the next action with Exact matching."
+        else:
+            next_step = (
+                "Select Lineup from URL before the next action to use this import with Exact matching. "
+                "Your current lineup selection was not changed."
             )
-        settings["lineup_file"] = selected_value
-        settings["match_sensitivity"] = "exact"
-        next_step = (
-            "Selected as your active lineup with Match Sensitivity set to Exact. "
-            "You may need to disable and re-enable "
-            "the plugin for it to show correctly in Settings."
-        )
         if imported["operation"] == "refreshed":
             outcome = f"Refreshed lineup file: {imported['filename']}."
         else:
@@ -1934,19 +1928,6 @@ class Plugin:
             "file": imported["filename"],
             "operation": imported["operation"],
         }
-
-    def _select_imported_lineup(self, selected_value):
-        """Persist lineup selection and Exact sensitivity together."""
-        from apps.plugins.models import PluginConfig as StoredPluginConfig
-
-        plugin_key = os.path.basename(os.path.dirname(__file__)).replace(" ", "_").lower()
-        with transaction.atomic():
-            config = StoredPluginConfig.objects.select_for_update().get(key=plugin_key)
-            saved_settings = dict(config.settings or {})
-            saved_settings["lineup_file"] = selected_value
-            saved_settings["match_sensitivity"] = "exact"
-            config.settings = saved_settings
-            config.save(update_fields=["settings", "updated_at"])
 
     def _validate_settings(self, settings, logger):
         """Check configuration validity."""
@@ -3764,3 +3745,11 @@ class Plugin:
                     logger.error(f"{LOG_PREFIX} Failed to delete {f}: {e}")
 
         return {"status": "ok", "message": f"Removed {removed} CSV export file(s)."}
+    def _effective_lineup_settings(self, settings):
+        """Resolve the stable URL choice per action without changing saved UI settings."""
+        effective = dict(settings)
+        if effective.get("lineup_file") == PluginConfig.URL_LINEUP_VALUE:
+            filename = current_import_filename(PluginConfig.PERSISTENT_LINEUPS_DIR)
+            effective["lineup_file"] = PluginConfig.PERSISTENT_LINEUP_PREFIX + filename
+            effective["match_sensitivity"] = "exact"
+        return effective
