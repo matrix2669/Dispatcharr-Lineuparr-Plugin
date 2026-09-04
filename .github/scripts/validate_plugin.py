@@ -110,7 +110,18 @@ def check_manifest() -> None:
         err("plugin.json: 'fields' must be [] (settings live in Plugin.fields)")
     if not manifest.get("actions"):
         err("plugin.json: 'actions' is missing or empty")
-    m = PY_VERSION_RE.search(ppy.read_text(encoding="utf-8"))
+    action_ids = {action.get("id") for action in manifest.get("actions", [])}
+    if "import_generated_lineup" not in action_ids:
+        err("plugin.json: generated lineup import action is missing")
+    plugin_source = ppy.read_text(encoding="utf-8")
+    for required in (
+        '"id": "generated_lineup_url"',
+        '"import_generated_lineup": self._import_generated_lineup',
+        'PERSISTENT_LINEUPS_DIR = "/data/lineuparr/lineups"',
+    ):
+        if required not in plugin_source:
+            err(f"plugin.py: generated lineup integration is missing {required!r}")
+    m = PY_VERSION_RE.search(plugin_source)
     if not m:
         err("plugin.py: PLUGIN_VERSION not found")
     elif manifest.get("version") != m.group(1):
