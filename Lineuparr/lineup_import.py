@@ -16,6 +16,23 @@ from urllib.request import Request, urlopen
 LINEUP_FILENAME_RE = re.compile(r"^[A-Z]{2}_.+_lineup\.json$")
 DEFAULT_MAX_BYTES = 10 * 1024 * 1024
 DEFAULT_TIMEOUT_SECONDS = 30
+CURRENT_IMPORT_FILE = ".current-url-import.json"
+
+
+def current_import_filename(directory):
+    """Read the persisted URL selection; never fall back to another lineup."""
+    try:
+        with open(os.path.join(directory, CURRENT_IMPORT_FILE), encoding="utf-8") as handle:
+            filename = json.load(handle)["filename"]
+        if (not isinstance(filename, str) or filename != os.path.basename(filename)
+                or "\\" in filename or "\x00" in filename
+                or not LINEUP_FILENAME_RE.fullmatch(filename)):
+            raise ValueError("invalid filename")
+        return filename
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise LineupImportError(
+            "Lineup from URL is not ready. Run Import / Refresh Generated Lineup first."
+        ) from exc
 
 
 class LineupImportError(ValueError):
@@ -195,6 +212,12 @@ def import_generated_lineup(url, destination_dir, opener=None,
     destination_path = os.path.join(destination_dir, filename)
     operation = "refreshed" if os.path.lexists(destination_path) else "created"
     _atomic_json_write(destination_path, data)
+    try:
+        _atomic_json_write(os.path.join(destination_dir, CURRENT_IMPORT_FILE), {"filename": filename})
+    except OSError as exc:
+        raise LineupImportError(
+            f"Lineup file {filename} was {operation}, but Lineup from URL could not be updated. Retry the import."
+        ) from exc
 
     package = data.get("package")
     if not isinstance(package, str) or not package.strip():
