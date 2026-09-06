@@ -86,11 +86,11 @@ def check_lineups() -> None:
                             f"{path.name}: channel '{name}' in '{cat_name}' "
                             "excluded_aliases must be a string or list"
                         )
-                    elif any(not isinstance(value, str) or not value.strip()
+                    elif any(not isinstance(value, str) or not value.replace("*", "").strip()
                              for value in excluded_values):
                         err(
                             f"{path.name}: channel '{name}' in '{cat_name}' "
-                            "excluded_aliases must contain only non-empty strings"
+                            "excluded_aliases must contain non-empty strings, not wildcard-only patterns"
                         )
                 seen[name] = seen.get(name, 0) + 1
             dups = [f"{n!r} x{c}" for n, c in seen.items() if c > 1]
