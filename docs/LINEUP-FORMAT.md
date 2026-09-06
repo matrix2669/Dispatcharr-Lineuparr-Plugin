@@ -87,22 +87,46 @@ looks like a good match but is known not to belong to that channel.
 
 ```json
 {
-  "name": "REELZ",
+  "name": "Game Show Network",
   "number": 128,
-  "aliases": ["Reelz Channel"],
-  "excluded_aliases": ["US-ReelzChannel"]
+  "aliases": ["GSN"],
+  "excluded_aliases": ["*Game Show Central*"]
 }
 ```
 
 A single exclusion may be a plain string instead of a one-item list. Exclusions
-use the same case, spacing, punctuation, provider-prefix and quality-tag
-normalization as aliases. They are channel-scoped: the excluded stream cannot
+compare original full stream names case-insensitively, trimming outer whitespace
+and collapsing repeated whitespace to one space. They do not use the lossy
+positive-alias normalizer: prefixes, punctuation, network words, quality tags,
+and word spacing remain significant. They are channel-scoped: the excluded stream cannot
 match this channel through an alias, callsign, exact, substring, fuzzy, quality
 bypass or channel-number boost, but it can still match another channel.
 
-Exclusions are literal names after normalization. Values such as `regex:`, `!`
-and glob characters have no special meaning. This keeps lineup files safe to
-load and makes a rejection as predictable as a positive alias.
+Without an unescaped `*`, the whole name must match. An unescaped `*` matches
+zero or more characters: `*Game Show Central*` rejects `US: Game Show Central HD`
+but preserves `Game Show Network` and does not match `GameShowCentral`.
+Patterns have no implicit word boundaries: that pattern also matches
+`Game Show Centralization`. Empty and wildcard-only patterns are invalid.
+Use Preview Stream Match to check broad exclusions before applying changes.
+
+Only `*` is a wildcard. Question marks, brackets, `!`, and regex syntax have
+no special meaning. Escape an asterisk with a backslash for a literal star;
+escape a backslash with another backslash. JSON requires those backslashes
+to be doubled. Other backslashes are literal. Matching uses ordered literal
+searches, not executable regular expressions.
+
+Exclusions affect stream matching only; they do not affect EPG/guide matching.
+The same stream name in multiple M3U accounts is excluded from this channel
+in every account. Preserve Existing Streams can retain previously attached
+excluded streams: an exclusion prevents new matching, not a guaranteed purge.
+Older plugin versions do not support this wildcard/escape contract.
+
+For example, this JSON excludes the literal title with asterisks, not
+arbitrary text between its letters:
+
+```json
+{"excluded_aliases": ["M\\*A\\*S\\*H"]}
+```
 
 ---
 

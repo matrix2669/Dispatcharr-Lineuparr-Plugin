@@ -55,13 +55,52 @@ def has_upgrade_quality(name: str) -> bool:
     return bool(_UPGRADE_QUALITY_RE.search(name))
 
 
+def _exclusion_parts(value):
+    """Compile star-only patterns on raw names, never the lossy normalizer."""
+    value = " ".join(value.casefold().split())
+    parts = [""]
+    index = 0
+    while index < len(value):
+        char = value[index]
+        if char == "\\" and index + 1 < len(value) and value[index + 1] in "*\\":
+            index += 1
+            parts[-1] += value[index]
+        elif char == "*":
+            if parts[-1] or len(parts) == 1:
+                parts.append("")
+        else:
+            parts[-1] += char
+        index += 1
+    return tuple(parts) if any(part.strip() for part in parts) else None
+
+
+def _matches_exclusion(name, parts):
+    """Anchored star matching using ordered literal searches, not regex."""
+    if len(parts) == 1:
+        return name == parts[0]
+    if not name.startswith(parts[0]) or not name.endswith(parts[-1]):
+        return False
+    position = len(parts[0])
+    end = len(name) - len(parts[-1])
+    if position > end:
+        return False
+    for part in parts[1:-1]:
+        if not part:
+            continue
+        found = name.find(part, position, end)
+        if found < 0:
+            return False
+        position = found + len(part)
+    return position <= end
+
+
 def parse_excluded_aliases(raw, logger=None, channel_name=None):
     """Return a clean, de-duplicated list of channel-scoped exclusions.
 
     A lineup may use one string or a list of strings. Invalid values are
     ignored together and produce at most one warning for the channel, so one
     malformed list cannot flood a long matching run. Values are still plain
-    text here; match_all_streams applies the normal Lineuparr normalization.
+    text here; only case and whitespace are folded for exclusion comparison.
     """
     if raw is None:
         return []
@@ -85,6 +124,9 @@ def parse_excluded_aliases(raw, logger=None, channel_name=None):
             invalid += 1
             continue
         value = value.strip()
+        if _exclusion_parts(value) is None:
+            invalid += 1
+            continue
         key = value.casefold()
         if key in seen:
             continue
@@ -94,7 +136,7 @@ def parse_excluded_aliases(raw, logger=None, channel_name=None):
     if invalid and logger is not None:
         label = f" for channel '{channel_name}'" if channel_name else ""
         logger.warning(
-            f"[Lineuparr] Ignored {invalid} empty or non-string excluded_aliases "
+            f"[Lineuparr] Ignored {invalid} empty, wildcard-only, or non-string excluded_aliases "
             f"value{'s' if invalid != 1 else ''}{label}"
         )
     return cleaned
@@ -764,8 +806,9 @@ class FuzzyMatcher(FuzzyMatcherCore):
                 that prefix by platform ("GO:", "RK:", "PRIME:") rather than by country.
                 Omit it and matching behaves exactly as it did before.
             excluded_aliases: Optional string or list of stream names that must not
-                match this channel. Values use the same normalization as positive
-                aliases and are applied before every positive matching path.
+                match this channel. Raw full names are compared case-insensitively
+                with whitespace collapsed; unescaped * matches any text.
+                Applied before every positive matching path; not used for EPG.
 
         Returns:
             List of (stream_name, score, match_type) tuples sorted by score desc.
@@ -779,18 +822,11 @@ class FuzzyMatcher(FuzzyMatcherCore):
         # Channel-scoped exclusions are final. Filter before quality-aware alias
         # bypass, alias/callsign rescue, exact, substring, fuzzy, country/region
         # handling, and number boosts so no later stage can restore a denied pair.
-        excluded_keys = set()
-        for value in parse_excluded_aliases(excluded_aliases):
-            normalized = self.normalize_name(value, user_ignored_tags)
-            if not normalized:
-                continue
-            normalized = normalized.lower()
-            excluded_keys.add(normalized)
-            excluded_keys.add(re.sub(r'[\s&\-]+', '', normalized))
-        if excluded_keys:
+        exclusions = tuple(_exclusion_parts(value) for value in parse_excluded_aliases(excluded_aliases))
+        if exclusions:
             candidate_names = [
                 candidate for candidate in candidate_names
-                if not self._candidate_is_excluded(candidate, excluded_keys, user_ignored_tags)
+                if not self._candidate_is_excluded(candidate, exclusions)
             ]
             if not candidate_names:
                 return []
@@ -1103,11 +1139,7 @@ class FuzzyMatcher(FuzzyMatcherCore):
         )
         return results
 
-    def _candidate_is_excluded(self, candidate, excluded_keys, user_ignored_tags=None):
-        """Return True when candidate equals a normalized literal exclusion."""
-        candidate_lower, candidate_nospace = self._get_cached_norm(
-            candidate, user_ignored_tags
-        )
-        if not candidate_lower:
-            return False
-        return candidate_lower in excluded_keys or candidate_nospace in excluded_keys
+    def _candidate_is_excluded(self, candidate, exclusions):
+        """Preserve prefixes, words, punctuation and quality tags for exclusions."""
+        name = " ".join(candidate.casefold().split())
+        return any(_matches_exclusion(name, parts) for parts in exclusions)
