@@ -162,3 +162,14 @@ def test_precomputed_and_fallback_results_equivalent(monkeypatch):
     # Core selects RapidFuzz through its module-level availability flag.
     monkeypatch.setattr(core, '_USE_RAPIDFUZZ', False)
     assert FuzzyMatcher(70).match_stream_occurrences(TITLES[0], ctx, {}) == expected
+
+
+def test_quality_copies_do_not_inflate_group_coverage_or_label_length():
+    m = FuzzyMatcher(70)
+    data = rows()
+    for i, row in enumerate(rows()):
+        for quality in ['SD', 'FHD', 'RAW']:
+            data.append(record(f'{i}-{quality}', row['name'].removesuffix('HD')+quality))
+    data.extend([record('u1', 'Unwrapped title'), record('u2', 'Another unwrapped title')])
+    assert not variants(context(m, data))
+    assert not variants(context(m, rows('X ')))

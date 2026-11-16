@@ -99,6 +99,7 @@ def prepare_context(streams, reference_names, detect_country, detect_group_count
     for scope, names in sorted(groups.items()):
         time.sleep(0)
         candidates = {}
+        distinct_names = {identity(raw) for raw in names}
         for index, raw in enumerate(names):
             if index % 500 == 0:
                 time.sleep(0)
@@ -107,6 +108,8 @@ def prepare_context(streams, reference_names, detect_country, detect_group_count
                 continue
             prefix, tail = match.groups()
             prefix = " ".join(prefix.split())
+            if len(prefix) < 2:
+                continue
             folded = identity(prefix)
             # A known country, station, quality/feed marker or catalogue identity
             # is semantic. Never reinterpret it as presentation-only wrapping.
@@ -122,7 +125,7 @@ def prepare_context(streams, reference_names, detect_country, detect_group_count
             # At least 5 distinct complete identities; at least 3 independently
             # corroborated titles/aliases. Wrapper dominates this captured group.
             # Duplicate physical streams and quality copies cannot inflate either.
-            if len(tails) < 5 or len(tails & references) < 3 or len(rows) * 5 < len(names) * 4:
+            if len(tails) < 5 or len(tails & references) < 3 or len(tails) * 5 < len(distinct_names) * 4:
                 continue
             for raw, tail in sorted(rows):
                 keys = tuple(names[raw])
