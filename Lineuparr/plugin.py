@@ -1201,7 +1201,7 @@ class Plugin:
         valid_ids, priority_map, _ = self._resolve_m3u_sources(settings, logger)
 
         qs = Stream.objects.all().values(
-            'id', 'name', 'm3u_account', 'stream_stats', 'channel_group__name'
+            'id', 'name', 'm3u_account', 'stream_stats', 'channel_group_id', 'channel_group__name'
         )
         if valid_ids is not None:
             qs = qs.filter(m3u_account__in=valid_ids)
@@ -2694,6 +2694,27 @@ class Plugin:
             "background": True,
         }
 
+    @staticmethod
+    def _matched_stream_objects(matches, stream_by_key):
+        """Resolve only physical winners; never expand a score by display name."""
+        result = []
+        for match in matches:
+            row = dict(stream_by_key[match.key])
+            row['_match_score'] = match.score
+            row['_match_type'] = match.match_type
+            result.append(row)
+        return result
+
+    def _stream_reference_names(self, lineup, alias_map_for, lineup_cc):
+        names = []
+        for category, rows in lineup["categories"].items():
+            cc = detect_category_country(category) or lineup_cc
+            for entry in rows:
+                names.append(entry["name"])
+                aliases = alias_map_for(self._resolve_entry_country(entry, cc))
+                names.extend(aliases.get(entry["name"], []))
+        return names
+
     def _do_preview_stream_match(self, settings, logger):
         """Background thread for stream match preview."""
         try:
@@ -2726,6 +2747,8 @@ class Plugin:
 
             # Pre-normalize stream names for performance
             matcher.precompute_normalizations(unique_stream_names)
+            stream_context = matcher.prepare_stream_context(streams,
+                self._stream_reference_names(lineup, alias_map_for, lineup_cc))
             matcher.country_filter_drops = 0
 
             results = []
@@ -2751,8 +2774,8 @@ class Plugin:
                     ch_number = self._get_channel_number(settings, entry, assigner)
                     boost_number = self._parse_channel_number(entry.get("number")) if use_number_boost else None
 
-                    matches = matcher.match_all_streams(
-                        ch_name, unique_stream_names, alias_map_for(entry_cc),
+                    occurrence_matches = matcher.match_stream_occurrences(
+                        ch_name, stream_context, alias_map_for(entry_cc),
                         channel_number=boost_number,
                         lineup_country=entry_cc,
                         quality_aware=(ch_name in upgrade_twin_set),
@@ -2760,6 +2783,7 @@ class Plugin:
                         excluded_aliases=entry.get("excluded_aliases"),
                     )
 
+                    matches = [(m.raw_name, m.score, m.match_type) for m in occurrence_matches]
                     if matches:
                         best_name, best_score, best_type = matches[0]
                         matched_count += 1
@@ -3467,20 +3491,13 @@ class Plugin:
             if not all_streams:
                 return {"status": "error", "error": "No streams found. Check M3U sources."}
 
-            # Build name -> stream objects lookup
-            stream_by_name = {}
-            for s in all_streams:
-                stream_by_name.setdefault(s['name'], []).append(s)
-
-            # Deduplicate stream names for matching performance
-            unique_stream_names = list(stream_by_name.keys())
+            stream_by_key = {f"{s['m3u_account']}:{s['id']}": s for s in all_streams}
+            unique_stream_names = list(dict.fromkeys(s['name'] for s in all_streams))
             stream_countries = self._stream_countries_by_name(all_streams)
-            logger.info(f"{LOG_PREFIX} Matching against {len(unique_stream_names)} unique stream names (from {len(all_streams)} total)")
-
-            # Pre-normalize stream names for performance
             matcher.precompute_normalizations(unique_stream_names)
+            stream_context = matcher.prepare_stream_context(all_streams,
+                self._stream_reference_names(lineup, alias_map_for, lineup_cc))
             matcher.country_filter_drops = 0
-
             upgrade_twin_set = self._get_upgrade_twin_set(settings, lineup, matcher, logger)
 
             # Get existing groups and channels
@@ -3526,9 +3543,10 @@ class Plugin:
                         progress.update()
                         continue
 
-                    # Match streams using deduplicated names
-                    matches = matcher.match_all_streams(
-                        ch_name, unique_stream_names, alias_map_for(entry_cc),
+                    # Match physical occurrences. A supported scope must never
+                    # lend its stripped-path score to the same name elsewhere.
+                    matches = matcher.match_stream_occurrences(
+                        ch_name, stream_context, alias_map_for(entry_cc),
                         channel_number=ch_number,
                         lineup_country=entry_cc,
                         quality_aware=(ch_name in upgrade_twin_set),
@@ -3537,14 +3555,7 @@ class Plugin:
                     )
 
                     if matches:
-                        # Expand matched names back to all stream objects
-                        matched_stream_objs = []
-                        for match_name, score, mtype in matches:
-                            for stream_obj in stream_by_name.get(match_name, []):
-                                stream_obj_copy = dict(stream_obj)
-                                stream_obj_copy['_match_score'] = score
-                                stream_obj_copy['_match_type'] = mtype
-                                matched_stream_objs.append(stream_obj_copy)
+                        matched_stream_objs = self._matched_stream_objects(matches, stream_by_key)
 
                         sorted_streams = self._sort_streams_by_quality(matched_stream_objs, prioritize_quality)
                         attached_count = len(sorted_streams)
@@ -3613,9 +3624,9 @@ class Plugin:
                             "Number": ch_number if ch_number else "",
                             "Category": category,
                             "Streams Attached": attached_count,
-                            "Best Match": matches[0][0],
-                            "Best Score": matches[0][1],
-                            "Match Type": matches[0][2],
+                            "Best Match": matches[0].raw_name,
+                            "Best Score": matches[0].score,
+                            "Match Type": matches[0].match_type,
                         })
                     else:
                         channels_unmatched += 1

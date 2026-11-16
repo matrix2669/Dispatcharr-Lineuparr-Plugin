@@ -177,3 +177,63 @@ untick.
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
+
+## Scoped provider-prefix matching
+
+Stream matching can discover an opaque provider wrapper from the captured M3U
+inventory. No provider-brand allowlist is added, and EPG matching is unchanged.
+Preview and Apply use the same physical-occurrence matcher. Raw stream names,
+IDs, literal exclusions and saved selections are not rewritten.
+
+### Conservative discovery profile: scoped-prefix-v1
+
+Discovery is rebuilt for each operation, using its selected catalogue and aliases.
+Only a known positive account ID and group ID form a scope. One ASCII label of
+2–24 characters (letters, digits, ampersand, dot, underscore, space or hyphen,
+starting with a letter), followed by `:` or `|`, is considered. The remaining
+complete title cannot contain another such delimiter or a section-header marker.
+
+Within that account/group, the wrapper must cover at least 80% of distinct raw
+names, have at least five distinct complete tails, and have at least three tails
+independently corroborated by complete selected channel titles or declared aliases.
+Repeated physical rows and presentation-quality copies do not increase support.
+A group with over 64 candidate labels learns nothing. Input is bounded to 250,000
+physical rows. Conflicting records for one physical key fail the capture.
+
+Corroboration applies Unicode NFKC, case folding and whitespace normalization,
+plus terminal HD/SD/FHD/HEVC/RAW removal only. It does not use the fuzzy normalizer.
+Country markers, callsigns, quality/feed-region words, and labels that themselves
+name a catalogue identity or an identity-family prefix cannot be learned as
+wrappers. Sparse, missing, ambiguous and uncorroborated scopes retain original-name
+matching only. These conservative thresholds intentionally trade recall for safety.
+
+A newly stripped path must also agree with a **complete** target title or explicit
+alias under that same conservative identity rule. It cannot newly discard a
+subbrand, channel number, shift, callsign, region or upgrade-quality marker just
+because the fuzzy normalizer would remove it. Existing original-name behavior
+is preserved, including its existing alias and fallback rules. This feature does
+not certify that every existing alias is correct.
+
+### One pipeline, physical provenance
+
+An immutable original view supports every captured occurrence of its raw name.
+A discovered view supports only the physical keys in its corroborated scope.
+Both enter one scoring pipeline. The original candidate pool keeps its historical
+country/region fallback behavior; new variants cannot use an all-removed fallback.
+Raw-name exclusions run before any positive path. Quality, shift, number and
+callsign checks retain the original input. New variants additionally retain their
+scoped group country. Reduction chooses the actual best score per physical key,
+with original evidence winning a tie. For example, one scope may receive 100 from
+a supported comparison while another occurrence keeps its original score of 87.
+
+The legacy `match_all_streams` API remains context-free for EPG and integrations.
+`prepare_stream_context` and `match_stream_occurrences` are the occurrence-aware
+stream APIs. The context is immutable and operation-local, not learned global
+state. Comparison strings have separate normalization cache entries; they never
+replace the original name's cache entry. Results include raw name, physical key,
+actual score/type, original or discovered provenance, comparison name and exact
+alias evidence. Apply resolves each key directly, never by blanket name expansion.
+
+Exported aliases and exclusions remain raw-name selectors. They can still affect
+multiple accounts when names are identical. Prefix discovery does not introduce
+account-specific JSON selectors, automatic saved choices, migrations or releases.

@@ -128,7 +128,7 @@ class TestAliasMapProvider:
         calls = [n for n in ast.walk(tree)
                  if isinstance(n, ast.Call)
                  and isinstance(n.func, ast.Attribute)
-                 and n.func.attr == "match_all_streams"]
+                 and n.func.attr in {"match_all_streams", "match_stream_occurrences"}]
         assert len(calls) == 3, f"expected 3 match_all_streams call sites, found {len(calls)}"
         for call in calls:
             alias_arg = call.args[2]
