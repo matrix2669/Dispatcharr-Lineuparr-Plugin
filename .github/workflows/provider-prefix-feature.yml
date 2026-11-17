@@ -1,0 +1,114 @@
+# Fork-owned feature validation. The generated upstream ci.yml stays untouched.
+# Test-only: no tags, releases, registry writes, deployment or mutable credentials.
+name: Provider Prefix Feature CI
+
+"on":
+  push:
+    branches: [feature/discovered-provider-prefixes]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-prefix-feature-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Set up Node for report tests
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Install development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest ruff rapidfuzz gevent==26.8.0
+      # Every shipped module, found by glob rather than a hand-kept list, which
+      # is a list that will be forgotten. `set -e` plus the empty-glob guard means
+      # a renamed package directory fails loudly instead of matching nothing.
+      - name: Byte-compile every shipped module
+        run: |
+          set -e
+          shopt -s nullglob
+          files=(Lineuparr/*.py)
+          if [ ${#files[@]} -eq 0 ]; then echo "no plugin sources matched Lineuparr/*.py"; exit 1; fi
+          printf 'compiling %s\n' "${files[@]}"
+          python -m py_compile "${files[@]}"
+      - name: Version sync (plugin.json == plugin.py)
+        run: python scripts/check_version_sync.py
+      # The rule families that indicate a genuine defect are a hard gate and were
+      # measured at zero before being made one.
+      - name: Lint gate (syntax errors and undefined names)
+        run: ruff check . --select E9,F63,F7,F82
+      # The full rule set has a standing backlog here. Gating on it would mean a
+      # permanently red CI that everyone learns to ignore, so it is reported and
+      # does not fail the build. The house rule is zero net-new findings.
+      - name: Lint report (advisory, does not fail the build)
+        run: ruff check . --exit-zero --statistics
+      - name: "Gate: validate plugin"
+        run: python .github/scripts/validate_plugin.py
+      - name: "Gate: check core parity"
+        run: python .github/scripts/check_core_parity.py
+      - name: "Gate: check client parity"
+        run: python .github/scripts/check_client_parity.py
+      - name: "Gate: check matcher golden"
+        run: python .github/scripts/check_matcher_golden.py
+      # Guards against a backslash-separator archive (bug-087) in any release zip
+      # that happens to be committed. A no-op when none is.
+      - name: Validate committed release zip(s)
+        run: |
+          shopt -s globstar nullglob
+          zips=(**/*.zip)
+          if [ ${#zips[@]} -eq 0 ]; then echo "No committed release zip - skipping."; exit 0; fi
+          rc=0
+          for z in "${zips[@]}"; do
+            echo "::group::$z"; python scripts/validate_zip.py "$z" || rc=1; echo "::endgroup::"
+          done
+          exit $rc
+      # tests/ became tracked on 2026-09-06. The step is guarded so a checkout
+      # without a suite says so rather than passing vacuously.
+      - name: Run test suite
+        if: hashFiles('tests/**') != ''
+        run: python -m pytest -q
+      - name: No test suite is tracked
+        if: hashFiles('tests/**') == ''
+        run: echo "::warning title=No tests::tests/ is not tracked in this repository, so nothing was tested."
+
+  # Second line of defence behind the pre-push hook: applies the repository's
+  # deny and allow rules to every tracked file, on the server, where a skipped
+  # hook does not apply. The scanner never prints a pattern or a matched string.
+  publish-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      # Rules are committed in .publish-audit.json. A PUBLISH_AUDIT_RULES secret,
+      # when one is set, takes precedence over the committed file.
+      PUBLISH_AUDIT_RULES: ${{ secrets.PUBLISH_AUDIT_RULES }}
+      AUDIT_RULES_COMMITTED: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Scan the tracked tree against the repository deny rules
+        run: python .github/scripts/publish_audit_ci.py
+
